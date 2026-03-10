@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 // ========== CONFIGURAZIONE ==========
 const API_URL =
   process.env.REACT_APP_API_URL ||
-  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001');
+  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000');
 
 // ========== UTILITIES ==========
 const fetchAPI = async (url, options = {}) => {
