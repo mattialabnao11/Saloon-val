@@ -343,12 +343,14 @@ function GestionePiattiPage() {
               <button
                 onClick={() => handleEdit(piatto)}
                 style={styles.editButton}
+                className="editButton"
               >
                 ✏️
               </button>
               <button
                 onClick={() => handleDelete(piatto.id)}
                 style={styles.deleteButton}
+                className="deleteButton"
               >
                 🗑️
               </button>
@@ -425,7 +427,7 @@ function PiattoForm({ piatto, onClose }) {
           <h2 style={styles.modalTitle}>
             {piatto ? 'Modifica Piatto' : 'Nuovo Piatto'}
           </h2>
-          <button onClick={onClose} style={styles.closeButton}>
+          <button onClick={onClose} style={styles.closeButton} className="closeButton">
             ✕
           </button>
         </div>
@@ -466,7 +468,7 @@ function PiattoForm({ piatto, onClose }) {
               </button>
             </div>
             {ingredienti.map((ing, index) => (
-              <div key={index} style={styles.ingredienteRow}>
+              <div key={index} style={styles.ingredienteRow} className="ingredienteRow">
                 <input
                   type="text"
                   placeholder="Nome ingrediente"
@@ -599,12 +601,14 @@ function GestioneDipendentiPage() {
               <button
                 onClick={() => handleEdit(dipendente)}
                 style={styles.editButton}
+                className="editButton"
               >
                 ✏️
               </button>
               <button
                 onClick={() => handleDelete(dipendente.id)}
                 style={styles.deleteButton}
+                className="deleteButton"
               >
                 🗑️
               </button>
@@ -661,7 +665,7 @@ function DipendenteForm({ dipendente, onClose }) {
           <h2 style={styles.modalTitle}>
             {dipendente ? 'Modifica Dipendente' : 'Nuovo Dipendente'}
           </h2>
-          <button onClick={onClose} style={styles.closeButton}>
+          <button onClick={onClose} style={styles.closeButton} className="closeButton">
             ✕
           </button>
         </div>
@@ -903,7 +907,7 @@ function FatturaForm({ piatti, onClose }) {
       <div style={{ ...styles.modalContent, maxWidth: '700px' }}>
         <div style={styles.modalHeader}>
           <h2 style={styles.modalTitle}>Nuova Fattura</h2>
-          <button onClick={onClose} style={styles.closeButton}>
+          <button onClick={onClose} style={styles.closeButton} className="closeButton">
             ✕
           </button>
         </div>
@@ -1179,55 +1183,67 @@ const styles = {
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
     border: 'none',
-    padding: '12px 24px',
-    borderRadius: '10px',
+    padding: '14px 28px',
+    borderRadius: '12px',
     fontSize: '15px',
     fontWeight: '600',
     cursor: 'pointer',
-    transition: 'transform 0.2s',
+    transition: 'all 0.2s',
+    boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
   },
   secondaryButton: {
-    background: '#e0e7ff',
-    color: '#667eea',
+    background: '#f0f2f5',
+    color: '#495057',
     border: 'none',
-    padding: '12px 24px',
-    borderRadius: '10px',
+    padding: '14px 28px',
+    borderRadius: '12px',
     fontSize: '15px',
     fontWeight: '600',
     cursor: 'pointer',
+    transition: 'all 0.2s',
   },
   editButton: {
-    background: 'transparent',
+    background: 'linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%)',
     border: 'none',
-    fontSize: '18px',
+    fontSize: '16px',
     cursor: 'pointer',
-    padding: '8px',
+    padding: '10px 14px',
     marginRight: '8px',
+    borderRadius: '10px',
+    transition: 'all 0.2s',
+    boxShadow: '0 2px 8px rgba(253, 203, 110, 0.3)',
   },
   deleteButton: {
-    background: 'transparent',
+    background: 'linear-gradient(135deg, #ff7675 0%, #d63031 100%)',
     border: 'none',
-    fontSize: '18px',
+    fontSize: '16px',
     cursor: 'pointer',
-    padding: '8px',
+    padding: '10px 14px',
+    borderRadius: '10px',
+    transition: 'all 0.2s',
+    boxShadow: '0 2px 8px rgba(214, 48, 49, 0.3)',
   },
   smallButton: {
-    background: '#667eea',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
     border: 'none',
-    padding: '8px 16px',
-    borderRadius: '6px',
+    padding: '10px 20px',
+    borderRadius: '10px',
     fontSize: '13px',
     fontWeight: '600',
     cursor: 'pointer',
+    boxShadow: '0 2px 10px rgba(102, 126, 234, 0.3)',
+    transition: 'all 0.2s',
   },
   removeButton: {
-    background: '#fee',
+    background: 'linear-gradient(135deg, #fab1a0 0%, #ff7675 100%)',
     border: 'none',
-    padding: '8px 12px',
-    borderRadius: '6px',
+    padding: '10px 14px',
+    borderRadius: '10px',
     cursor: 'pointer',
     fontSize: '16px',
+    transition: 'all 0.2s',
+    boxShadow: '0 2px 8px rgba(255, 118, 117, 0.3)',
   },
 
   // Forms
@@ -1249,21 +1265,26 @@ const styles = {
   },
   input: {
     width: '100%',
-    padding: '12px 16px',
+    padding: '14px 18px',
     border: '2px solid #e1e8ed',
-    borderRadius: '8px',
+    borderRadius: '12px',
     fontSize: '15px',
     fontFamily: 'inherit',
-    transition: 'border-color 0.2s',
+    transition: 'all 0.2s',
+    background: '#fafbfc',
   },
   form: {
-    padding: '0',
+    padding: '32px',
+    maxHeight: 'calc(90vh - 180px)',
+    overflowY: 'auto',
   },
   formActions: {
     display: 'flex',
     justifyContent: 'flex-end',
     gap: '12px',
-    marginTop: '24px',
+    marginTop: '32px',
+    paddingTop: '24px',
+    borderTop: '2px solid #f0f2f5',
   },
 
   // Table
@@ -1302,44 +1323,55 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'rgba(0,0,0,0.5)',
+    background: 'rgba(0,0,0,0.6)',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
-    backdropFilter: 'blur(4px)',
+    backdropFilter: 'blur(8px)',
+    animation: 'fadeIn 0.2s ease-out',
   },
   modalContent: {
     background: 'white',
-    borderRadius: '16px',
+    borderRadius: '24px',
     maxWidth: '600px',
     width: '90%',
     maxHeight: '90vh',
-    overflow: 'auto',
-    boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+    overflow: 'hidden',
+    boxShadow: '0 25px 80px rgba(102, 126, 234, 0.3), 0 10px 30px rgba(0,0,0,0.2)',
+    animation: 'slideUp 0.3s ease-out',
+    border: '1px solid rgba(255,255,255,0.8)',
   },
   modalHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '24px',
-    borderBottom: '1px solid #e9ecef',
+    padding: '28px 32px',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    color: 'white',
   },
   modalTitle: {
     fontFamily: "'Playfair Display', serif",
-    fontSize: '24px',
-    color: '#1a1a1a',
+    fontSize: '26px',
+    color: 'white',
     fontWeight: '700',
+    margin: 0,
   },
   closeButton: {
-    background: 'transparent',
+    background: 'rgba(255,255,255,0.2)',
     border: 'none',
-    fontSize: '24px',
+    fontSize: '20px',
     cursor: 'pointer',
-    color: '#999',
-    padding: '0',
-    width: '32px',
-    height: '32px',
+    color: 'white',
+    padding: '8px',
+    width: '36px',
+    height: '36px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'all 0.2s',
+    fontWeight: 'bold',
   },
 
   // Cards
@@ -1541,6 +1573,22 @@ styleSheet.textContent = `
     100% { transform: rotate(360deg); }
   }
   
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes slideUp {
+    from { 
+      opacity: 0;
+      transform: translateY(30px) scale(0.95);
+    }
+    to { 
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  
   * {
     box-sizing: border-box;
     margin: 0;
@@ -1553,8 +1601,13 @@ styleSheet.textContent = `
     -moz-osx-font-smoothing: grayscale;
   }
   
+  button {
+    font-family: inherit;
+  }
+  
   button:hover {
     transform: translateY(-2px);
+    filter: brightness(1.05);
   }
   
   button:active {
@@ -1563,12 +1616,63 @@ styleSheet.textContent = `
   
   input:focus, select:focus, textarea:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: #667eea !important;
+    background: white !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
   }
   
   .listinoCard:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  }
+  
+  /* Scrollbar personalizzata */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 10px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%);
+  }
+  
+  /* Effetto hover per close button */
+  .closeButton:hover {
+    background: rgba(255,255,255,0.3) !important;
+    transform: rotate(90deg) !important;
+  }
+  
+  /* Animazione per ingredienti row */
+  .ingredienteRow {
+    animation: slideUp 0.2s ease-out;
+  }
+  
+  /* Effetto per edit/delete buttons */
+  .editButton:hover {
+    transform: scale(1.1) !important;
+  }
+  
+  .deleteButton:hover {
+    transform: scale(1.1) !important;
+  }
+  
+  /* Input con effetto */
+  input, select, textarea {
+    transition: all 0.2s ease !important;
+  }
+  
+  input:hover, select:hover, textarea:hover {
+    border-color: #667eea !important;
   }
 `;
 document.head.appendChild(styleSheet);
