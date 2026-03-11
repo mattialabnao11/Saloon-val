@@ -16,6 +16,39 @@ const pool = new Pool({
     }
 });
 
+// DEBUG: Log connessione (rimuovere dopo il fix)
+console.log('=== DATABASE CONNECTION INFO ===');
+console.log('DATABASE_URL presente:', !!process.env.DATABASE_URL);
+if (process.env.DATABASE_URL) {
+    // Nascondi la password nel log
+    const urlParts = process.env.DATABASE_URL.match(/postgresql:\/\/([^:]+):([^@]+)@([^\/]+)\/(.+)/);
+    if (urlParts) {
+        console.log('User:', urlParts[1]);
+        console.log('Host:', urlParts[3]);
+        console.log('Database:', urlParts[4]);
+    }
+}
+console.log('================================');
+
+// Test connessione al database
+pool.query('SELECT current_database() as db, current_user as user, version()', (err, result) => {
+    if (err) {
+        console.error('❌ Errore connessione database:', err.message);
+    } else {
+        console.log('✅ Connesso a database:', result.rows[0].db);
+        console.log('✅ Utente:', result.rows[0].user);
+    }
+});
+
+// Test conteggio tabelle
+pool.query("SELECT COUNT(*) as count FROM users", (err, result) => {
+    if (err) {
+        console.error('❌ Tabella users non trovata:', err.message);
+    } else {
+        console.log('✅ Utenti nel database:', result.rows[0].count);
+    }
+});
+
 // Middleware
 app.use(cors({
     origin: process.env.CLIENT_URL || 'http://localhost:3001',
