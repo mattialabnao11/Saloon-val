@@ -1,68 +1,25 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 
 // ========== CONFIGURAZIONE ==========
-const API_URL =
-  process.env.REACT_APP_API_URL ||
-  (process.env.NODE_ENV ==='http://localhost:3000');
+const API_URL = process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000');
 
 // ========== UTILITIES ==========
 const fetchAPI = async (url, options = {}) => {
-  const hasBody = options.body !== undefined && options.body !== null;
-
   const response = await fetch(`${API_URL}${url}`, {
     ...options,
     credentials: 'include',
     headers: {
-      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+      'Content-Type': 'application/json',
       ...options.headers,
     },
   });
-
-  const contentType = response.headers.get('content-type') || '';
-  const isJson = contentType.includes('application/json');
-
-  let data = null;
-
-  try {
-    if (response.status !== 204) {
-      data = isJson ? await response.json() : await response.text();
-    }
-  } catch {
-    data = null;
-  }
-
+  
   if (!response.ok) {
-    const errorMessage =
-      (typeof data === 'object' && data?.error) ||
-      (typeof data === 'string' && data) ||
-      'Errore del server';
-    throw new Error(errorMessage);
+    const error = await response.json();
+    throw new Error(error.error || 'Errore del server');
   }
-
-  return data;
-};
-
-const pagePermissions = {
-  listino: ['Direttore', 'Dipendente'],
-  fatture: ['Direttore', 'Dipendente'],
-  piatti: ['Direttore'],
-  dipendenti: ['Direttore'],
-};
-
-const canAccessPage = (page, role) => {
-  return pagePermissions[page]?.includes(role);
-};
-
-const formatCurrency = (value) => {
-  const num = Number(value);
-  return Number.isFinite(num) ? num.toFixed(2) : '0.00';
-};
-
-const safeDateTime = (value) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? 'Data non valida'
-    : date.toLocaleString('it-IT');
+  
+  return response.json();
 };
 
 // ========== APP PRINCIPALE ==========
@@ -75,129 +32,11 @@ export default function App() {
     checkAuth();
   }, []);
 
-  useEffect(() => {
-    const styleId = 'ristorante-global-styles';
-
-    if (document.getElementById(styleId)) return;
-
-    const styleSheet = document.createElement('style');
-    styleSheet.id = styleId;
-    styleSheet.textContent = `
-      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;600;700&display=swap');
-
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-
-      @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
-
-      @keyframes slideUp {
-        from {
-          opacity: 0;
-          transform: translateY(30px) scale(0.95);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0) scale(1);
-        }
-      }
-
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-
-      body {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
-
-      button {
-        font-family: inherit;
-      }
-
-      button:hover {
-        transform: translateY(-2px);
-        filter: brightness(1.05);
-      }
-
-      button:active {
-        transform: translateY(0);
-      }
-
-      input:focus, select:focus, textarea:focus {
-        outline: none;
-        border-color: #667eea !important;
-        background: white !important;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
-      }
-
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-
-      ::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 10px;
-      }
-
-      ::-webkit-scrollbar-thumb {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 10px;
-      }
-
-      ::-webkit-scrollbar-thumb:hover {
-        background: linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%);
-      }
-
-      .listinoCardHover:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-      }
-
-      .closeButton:hover {
-        background: rgba(255,255,255,0.3) !important;
-        transform: rotate(90deg) !important;
-      }
-
-      .ingredienteRow {
-        animation: slideUp 0.2s ease-out;
-      }
-
-      .editButton:hover,
-      .deleteButton:hover {
-        transform: scale(1.1) !important;
-      }
-
-      input, select, textarea {
-        transition: all 0.2s ease !important;
-      }
-
-      input:hover, select:hover, textarea:hover {
-        border-color: #667eea !important;
-      }
-    `;
-    document.head.appendChild(styleSheet);
-
-    return () => {
-      const styleEl = document.getElementById(styleId);
-      if (styleEl) styleEl.remove();
-    };
-  }, []);
-
   const checkAuth = async () => {
     try {
       const data = await fetchAPI('/api/me');
       setUser(data);
-      setCurrentPage('listino');
-    } catch {
+    } catch (error) {
       setUser(null);
     } finally {
       setLoading(false);
@@ -209,20 +48,13 @@ export default function App() {
       method: 'POST',
       body: JSON.stringify({ nome, password }),
     });
-
     setUser(data);
     setCurrentPage('listino');
   };
 
   const handleLogout = async () => {
-    try {
-      await fetchAPI('/api/logout', { method: 'POST' });
-    } catch (error) {
-      alert(`Logout non riuscito: ${error.message}`);
-    } finally {
-      setUser(null);
-      setCurrentPage('listino');
-    }
+    await fetchAPI('/api/logout', { method: 'POST' });
+    setUser(null);
   };
 
   if (loading) {
@@ -237,19 +69,15 @@ export default function App() {
     return <LoginPage onLogin={handleLogin} />;
   }
 
-  const safeCurrentPage = canAccessPage(currentPage, user.ruolo)
-    ? currentPage
-    : 'listino';
-
   return (
     <div style={styles.appContainer}>
       <Sidebar
         user={user}
-        currentPage={safeCurrentPage}
+        currentPage={currentPage}
         onNavigate={setCurrentPage}
         onLogout={handleLogout}
       />
-      <MainContent currentPage={safeCurrentPage} user={user} />
+      <MainContent currentPage={currentPage} user={user} />
     </div>
   );
 }
@@ -269,7 +97,7 @@ function LoginPage({ onLogin }) {
     try {
       await onLogin(nome, password);
     } catch (err) {
-      setError(err.message || 'Errore durante il login');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -311,6 +139,10 @@ function LoginPage({ onLogin }) {
             {loading ? 'Accesso...' : 'Accedi'}
           </button>
         </form>
+
+        <div style={styles.loginHint}>
+          <small>Utente default: Admin / admin123</small>
+        </div>
       </div>
     </div>
   );
@@ -362,14 +194,6 @@ function Sidebar({ user, currentPage, onNavigate, onLogout }) {
 
 // ========== MAIN CONTENT ==========
 function MainContent({ currentPage, user }) {
-  if (!canAccessPage(currentPage, user.ruolo)) {
-    return (
-      <div style={styles.pageContainer}>
-        <div style={styles.emptyState}>Non hai accesso a questa sezione.</div>
-      </div>
-    );
-  }
-
   return (
     <div style={styles.mainContent}>
       {currentPage === 'listino' && <ListinoPage />}
@@ -385,20 +209,20 @@ function ListinoPage() {
   const [piatti, setPiatti] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const loadPiatti = useCallback(async () => {
+  useEffect(() => {
+    loadPiatti();
+  }, []);
+
+  const loadPiatti = async () => {
     try {
       const data = await fetchAPI('/api/piatti');
-      setPiatti(Array.isArray(data) ? data : []);
+      setPiatti(data);
     } catch (error) {
       console.error('Errore caricamento piatti:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    loadPiatti();
-  }, [loadPiatti]);
+  };
 
   if (loading) return <div style={styles.loading}>Caricamento...</div>;
 
@@ -408,13 +232,12 @@ function ListinoPage() {
 
       <div style={styles.cardGrid}>
         {piatti.map((piatto) => (
-          <div key={piatto.id} style={styles.listinoCard} className="listinoCardHover">
+          <div key={piatto.id} style={styles.listinoCard}>
             <div style={styles.listinoCardHeader}>
               <h3 style={styles.listinoCardTitle}>{piatto.nome}</h3>
-              <span style={styles.listinoCardPrice}>€{formatCurrency(piatto.prezzo)}</span>
+              <span style={styles.listinoCardPrice}>€{parseFloat(piatto.prezzo).toFixed(2)}</span>
             </div>
-
-            {Array.isArray(piatto.ingredienti) && piatto.ingredienti.length > 0 && (
+            {piatto.ingredienti && piatto.ingredienti.length > 0 && (
               <div style={styles.ingredientiSection}>
                 <p style={styles.ingredientiLabel}>Ingredienti necessari:</p>
                 <ul style={styles.ingredientiList}>
@@ -444,29 +267,29 @@ function GestionePiattiPage() {
   const [editingPiatto, setEditingPiatto] = useState(null);
   const [showForm, setShowForm] = useState(false);
 
-  const loadPiatti = useCallback(async () => {
+  useEffect(() => {
+    loadPiatti();
+  }, []);
+
+  const loadPiatti = async () => {
     try {
       const data = await fetchAPI('/api/piatti');
-      setPiatti(Array.isArray(data) ? data : []);
+      setPiatti(data);
     } catch (error) {
       console.error('Errore caricamento piatti:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    loadPiatti();
-  }, [loadPiatti]);
+  };
 
   const handleDelete = async (id) => {
     if (!window.confirm('Sei sicuro di voler eliminare questo piatto?')) return;
 
     try {
       await fetchAPI(`/api/piatti/${id}`, { method: 'DELETE' });
-      await loadPiatti();
+      loadPiatti();
     } catch (error) {
-      alert(`Errore: ${error.message}`);
+      alert('Errore: ' + error.message);
     }
   };
 
@@ -475,17 +298,10 @@ function GestionePiattiPage() {
     setShowForm(true);
   };
 
-  const handleCreate = () => {
-    setEditingPiatto(null);
-    setShowForm(true);
-  };
-
-  const handleFormClose = async (shouldReload = true) => {
+  const handleFormClose = () => {
     setShowForm(false);
     setEditingPiatto(null);
-    if (shouldReload) {
-      await loadPiatti();
-    }
+    loadPiatti();
   };
 
   if (loading) return <div style={styles.loading}>Caricamento...</div>;
@@ -494,7 +310,10 @@ function GestionePiattiPage() {
     <div style={styles.pageContainer}>
       <div style={styles.pageHeader}>
         <h1 style={styles.pageTitle}>🍝 Gestione Piatti</h1>
-        <button onClick={handleCreate} style={styles.primaryButton}>
+        <button
+          onClick={() => setShowForm(true)}
+          style={styles.primaryButton}
+        >
           + Nuovo Piatto
         </button>
       </div>
@@ -507,19 +326,18 @@ function GestionePiattiPage() {
       )}
 
       <div style={styles.table}>
-        <div style={styles.tableHeaderPiatti}>
+        <div style={styles.tableHeader}>
           <div style={styles.tableCell}>Nome</div>
           <div style={styles.tableCell}>Prezzo</div>
           <div style={styles.tableCell}>Ingredienti</div>
           <div style={styles.tableCell}>Azioni</div>
         </div>
-
         {piatti.map((piatto) => (
-          <div key={piatto.id} style={styles.tableRowPiatti}>
+          <div key={piatto.id} style={styles.tableRow}>
             <div style={styles.tableCell}>{piatto.nome}</div>
-            <div style={styles.tableCell}>€{formatCurrency(piatto.prezzo)}</div>
+            <div style={styles.tableCell}>€{parseFloat(piatto.prezzo).toFixed(2)}</div>
             <div style={styles.tableCell}>
-              {Array.isArray(piatto.ingredienti) ? piatto.ingredienti.length : 0} ingredienti
+              {piatto.ingredienti?.length || 0} ingredienti
             </div>
             <div style={styles.tableCell}>
               <button
@@ -550,52 +368,35 @@ function GestionePiattiPage() {
 
 // ========== PIATTO FORM ==========
 function PiattoForm({ piatto, onClose }) {
-  const [nome, setNome] = useState('');
-  const [prezzo, setPrezzo] = useState('');
-  const [ingredienti, setIngredienti] = useState([]);
+  const [nome, setNome] = useState(piatto?.nome || '');
+  const [prezzo, setPrezzo] = useState(piatto?.prezzo || '');
+  const [ingredienti, setIngredienti] = useState(piatto?.ingredienti || []);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    setNome(piatto?.nome || '');
-    setPrezzo(
-      piatto?.prezzo !== undefined && piatto?.prezzo !== null
-        ? String(piatto.prezzo)
-        : ''
-    );
-    setIngredienti(Array.isArray(piatto?.ingredienti) ? piatto.ingredienti : []);
-  }, [piatto]);
-
   const addIngrediente = () => {
-    setIngredienti((prev) => [...prev, { nome_ingrediente: '', quantita: '' }]);
+    setIngredienti([...ingredienti, { nome_ingrediente: '', quantita: '' }]);
   };
 
   const removeIngrediente = (index) => {
-    setIngredienti((prev) => prev.filter((_, i) => i !== index));
+    setIngredienti(ingredienti.filter((_, i) => i !== index));
   };
 
   const updateIngrediente = (index, field, value) => {
-    setIngredienti((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
-    );
+    const newIngredienti = [...ingredienti];
+    newIngredienti[index][field] = value;
+    setIngredienti(newIngredienti);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const prezzoNumerico = Number(prezzo);
-    if (!Number.isFinite(prezzoNumerico) || prezzoNumerico < 0) {
-      alert('Inserisci un prezzo valido');
-      return;
-    }
-
     setLoading(true);
 
     try {
       const body = {
-        nome: nome.trim(),
-        prezzo: prezzoNumerico,
+        nome,
+        prezzo: parseFloat(prezzo),
         ingredienti: ingredienti.filter(
-          (ing) => ing.nome_ingrediente?.trim() && ing.quantita?.trim()
+          (ing) => ing.nome_ingrediente && ing.quantita
         ),
       };
 
@@ -611,9 +412,9 @@ function PiattoForm({ piatto, onClose }) {
         });
       }
 
-      await onClose(true);
+      onClose();
     } catch (error) {
-      alert(`Errore: ${error.message}`);
+      alert('Errore: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -626,11 +427,7 @@ function PiattoForm({ piatto, onClose }) {
           <h2 style={styles.modalTitle}>
             {piatto ? 'Modifica Piatto' : 'Nuovo Piatto'}
           </h2>
-          <button
-            onClick={() => onClose(false)}
-            style={styles.closeButton}
-            className="closeButton"
-          >
+          <button onClick={onClose} style={styles.closeButton} className="closeButton">
             ✕
           </button>
         </div>
@@ -652,7 +449,6 @@ function PiattoForm({ piatto, onClose }) {
             <input
               type="number"
               step="0.01"
-              min="0"
               value={prezzo}
               onChange={(e) => setPrezzo(e.target.value)}
               style={styles.input}
@@ -671,13 +467,8 @@ function PiattoForm({ piatto, onClose }) {
                 + Aggiungi
               </button>
             </div>
-
             {ingredienti.map((ing, index) => (
-              <div
-                key={index}
-                style={styles.ingredienteRow}
-                className="ingredienteRow"
-              >
+              <div key={index} style={styles.ingredienteRow} className="ingredienteRow">
                 <input
                   type="text"
                   placeholder="Nome ingrediente"
@@ -710,7 +501,7 @@ function PiattoForm({ piatto, onClose }) {
           <div style={styles.formActions}>
             <button
               type="button"
-              onClick={() => onClose(false)}
+              onClick={onClose}
               style={styles.secondaryButton}
             >
               Annulla
@@ -736,29 +527,29 @@ function GestioneDipendentiPage() {
   const [editingDipendente, setEditingDipendente] = useState(null);
   const [showForm, setShowForm] = useState(false);
 
-  const loadDipendenti = useCallback(async () => {
+  useEffect(() => {
+    loadDipendenti();
+  }, []);
+
+  const loadDipendenti = async () => {
     try {
       const data = await fetchAPI('/api/dipendenti');
-      setDipendenti(Array.isArray(data) ? data : []);
+      setDipendenti(data);
     } catch (error) {
       console.error('Errore caricamento dipendenti:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    loadDipendenti();
-  }, [loadDipendenti]);
+  };
 
   const handleDelete = async (id) => {
     if (!window.confirm('Sei sicuro di voler eliminare questo dipendente?')) return;
 
     try {
       await fetchAPI(`/api/dipendenti/${id}`, { method: 'DELETE' });
-      await loadDipendenti();
+      loadDipendenti();
     } catch (error) {
-      alert(`Errore: ${error.message}`);
+      alert('Errore: ' + error.message);
     }
   };
 
@@ -767,17 +558,10 @@ function GestioneDipendentiPage() {
     setShowForm(true);
   };
 
-  const handleCreate = () => {
-    setEditingDipendente(null);
-    setShowForm(true);
-  };
-
-  const handleFormClose = async (shouldReload = true) => {
+  const handleFormClose = () => {
     setShowForm(false);
     setEditingDipendente(null);
-    if (shouldReload) {
-      await loadDipendenti();
-    }
+    loadDipendenti();
   };
 
   if (loading) return <div style={styles.loading}>Caricamento...</div>;
@@ -786,7 +570,10 @@ function GestioneDipendentiPage() {
     <div style={styles.pageContainer}>
       <div style={styles.pageHeader}>
         <h1 style={styles.pageTitle}>👥 Gestione Dipendenti</h1>
-        <button onClick={handleCreate} style={styles.primaryButton}>
+        <button
+          onClick={() => setShowForm(true)}
+          style={styles.primaryButton}
+        >
           + Nuovo Dipendente
         </button>
       </div>
@@ -799,14 +586,13 @@ function GestioneDipendentiPage() {
       )}
 
       <div style={styles.table}>
-        <div style={styles.tableHeaderDipendenti}>
+        <div style={styles.tableHeader}>
           <div style={styles.tableCell}>Nome</div>
           <div style={styles.tableCell}>Ruolo</div>
           <div style={styles.tableCell}>Azioni</div>
         </div>
-
         {dipendenti.map((dipendente) => (
-          <div key={dipendente.id} style={styles.tableRowDipendenti}>
+          <div key={dipendente.id} style={styles.tableRow}>
             <div style={styles.tableCell}>{dipendente.nome}</div>
             <div style={styles.tableCell}>
               <span style={styles.roleBadge}>{dipendente.ruolo}</span>
@@ -840,33 +626,17 @@ function GestioneDipendentiPage() {
 
 // ========== DIPENDENTE FORM ==========
 function DipendenteForm({ dipendente, onClose }) {
-  const [nome, setNome] = useState('');
-  const [ruolo, setRuolo] = useState('Dipendente');
+  const [nome, setNome] = useState(dipendente?.nome || '');
+  const [ruolo, setRuolo] = useState(dipendente?.ruolo || 'Dipendente');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    setNome(dipendente?.nome || '');
-    setRuolo(dipendente?.ruolo || 'Dipendente');
-    setPassword('');
-  }, [dipendente]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!dipendente && !password.trim()) {
-      alert('La password è obbligatoria per un nuovo dipendente');
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const body = {
-        nome: nome.trim(),
-        ruolo,
-        ...(password.trim() ? { password } : {}),
-      };
+      const body = { nome, ruolo, password };
 
       if (dipendente) {
         await fetchAPI(`/api/dipendenti/${dipendente.id}`, {
@@ -880,9 +650,9 @@ function DipendenteForm({ dipendente, onClose }) {
         });
       }
 
-      await onClose(true);
+      onClose();
     } catch (error) {
-      alert(`Errore: ${error.message}`);
+      alert('Errore: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -895,11 +665,7 @@ function DipendenteForm({ dipendente, onClose }) {
           <h2 style={styles.modalTitle}>
             {dipendente ? 'Modifica Dipendente' : 'Nuovo Dipendente'}
           </h2>
-          <button
-            onClick={() => onClose(false)}
-            style={styles.closeButton}
-            className="closeButton"
-          >
+          <button onClick={onClose} style={styles.closeButton} className="closeButton">
             ✕
           </button>
         </div>
@@ -945,7 +711,7 @@ function DipendenteForm({ dipendente, onClose }) {
           <div style={styles.formActions}>
             <button
               type="button"
-              onClick={() => onClose(false)}
+              onClick={onClose}
               style={styles.secondaryButton}
             >
               Annulla
@@ -971,31 +737,28 @@ function FatturePage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
 
-  const loadData = useCallback(async () => {
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
     try {
       const [fattureData, piattiData] = await Promise.all([
         fetchAPI('/api/fatture'),
         fetchAPI('/api/piatti'),
       ]);
-
-      setFatture(Array.isArray(fattureData) ? fattureData : []);
-      setPiatti(Array.isArray(piattiData) ? piattiData : []);
+      setFatture(fattureData);
+      setPiatti(piattiData);
     } catch (error) {
       console.error('Errore caricamento dati:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const handleFormClose = async (shouldReload = true) => {
+  const handleFormClose = () => {
     setShowForm(false);
-    if (shouldReload) {
-      await loadData();
-    }
+    loadData();
   };
 
   if (loading) return <div style={styles.loading}>Caricamento...</div>;
@@ -1004,7 +767,10 @@ function FatturePage() {
     <div style={styles.pageContainer}>
       <div style={styles.pageHeader}>
         <h1 style={styles.pageTitle}>🧾 Fatture</h1>
-        <button onClick={() => setShowForm(true)} style={styles.primaryButton}>
+        <button
+          onClick={() => setShowForm(true)}
+          style={styles.primaryButton}
+        >
           + Nuova Fattura
         </button>
       </div>
@@ -1020,25 +786,25 @@ function FatturePage() {
               <div>
                 <div style={styles.fatturaId}>Fattura #{fattura.id}</div>
                 <div style={styles.fatturaDate}>
-                  {safeDateTime(fattura.data)}
+                  {new Date(fattura.data).toLocaleString('it-IT')}
                 </div>
                 <div style={styles.fatturaDipendente}>
                   Creata da: {fattura.dipendente_nome}
                 </div>
               </div>
               <div style={styles.fatturaTotal}>
-                €{formatCurrency(fattura.totale)}
+                €{parseFloat(fattura.totale).toFixed(2)}
               </div>
             </div>
 
             <div style={styles.fatturaDettagli}>
-              {(Array.isArray(fattura.dettagli) ? fattura.dettagli : []).map((det, idx) => (
+              {fattura.dettagli.map((det, idx) => (
                 <div key={idx} style={styles.fatturaDettaglioRow}>
                   <span>{det.nome_piatto}</span>
                   <span>x{det.quantita}</span>
-                  <span>€{formatCurrency(det.prezzo_unitario)}</span>
+                  <span>€{parseFloat(det.prezzo_unitario).toFixed(2)}</span>
                   <span style={styles.fatturaDettaglioTotal}>
-                    €{formatCurrency(Number(det.quantita) * Number(det.prezzo_unitario))}
+                    €{(det.quantita * parseFloat(det.prezzo_unitario)).toFixed(2)}
                   </span>
                 </div>
               ))}
@@ -1065,77 +831,48 @@ function FatturaForm({ piatti, onClose }) {
   const [loading, setLoading] = useState(false);
 
   const addItem = () => {
-    setItems((prev) => [
-      ...prev,
+    setItems([
+      ...items,
       { piatto_id: '', nome_piatto: '', prezzo_unitario: 0, quantita: 1 },
     ]);
   };
 
   const removeItem = (index) => {
-    setItems((prev) => prev.filter((_, i) => i !== index));
+    setItems(items.filter((_, i) => i !== index));
   };
 
   const updateItem = (index, field, value) => {
-    setItems((prev) =>
-      prev.map((item, i) => {
-        if (i !== index) return item;
-
-        if (field === 'piatto_id') {
-          const piatto = piatti.find((p) => String(p.id) === String(value));
-          if (!piatto) {
-            return {
-              ...item,
-              piatto_id: '',
-              nome_piatto: '',
-              prezzo_unitario: 0,
-            };
-          }
-
-          return {
-            ...item,
-            piatto_id: piatto.id,
-            nome_piatto: piatto.nome,
-            prezzo_unitario: Number(piatto.prezzo) || 0,
-          };
-        }
-
-        if (field === 'quantita') {
-          return {
-            ...item,
-            quantita: Math.max(1, Number(value) || 1),
-          };
-        }
-
-        return {
-          ...item,
-          [field]: value,
+    const newItems = [...items];
+    
+    if (field === 'piatto_id') {
+      const piatto = piatti.find((p) => p.id === parseInt(value));
+      if (piatto) {
+        newItems[index] = {
+          ...newItems[index],
+          piatto_id: piatto.id,
+          nome_piatto: piatto.nome,
+          prezzo_unitario: parseFloat(piatto.prezzo),
         };
-      })
-    );
+      }
+    } else {
+      newItems[index][field] = value;
+    }
+    
+    setItems(newItems);
   };
 
   const calculateTotal = () => {
-    return items.reduce((sum, item) => {
-      const quantita = Number(item.quantita) || 0;
-      const prezzo = Number(item.prezzo_unitario) || 0;
-      return sum + quantita * prezzo;
-    }, 0);
+    return items.reduce(
+      (sum, item) => sum + item.quantita * item.prezzo_unitario,
+      0
+    );
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+    
     if (items.length === 0) {
       alert('Aggiungi almeno un piatto alla fattura');
-      return;
-    }
-
-    const invalidItem = items.find(
-      (item) => !item.piatto_id || !Number.isFinite(Number(item.quantita)) || Number(item.quantita) < 1
-    );
-
-    if (invalidItem) {
-      alert('Controlla i piatti selezionati e le quantità');
       return;
     }
 
@@ -1144,12 +881,12 @@ function FatturaForm({ piatti, onClose }) {
     try {
       const body = {
         dettagli: items.map((item) => ({
-          piatto_id: Number(item.piatto_id),
+          piatto_id: item.piatto_id,
           nome_piatto: item.nome_piatto,
-          quantita: Number(item.quantita),
-          prezzo_unitario: Number(item.prezzo_unitario),
+          quantita: parseInt(item.quantita),
+          prezzo_unitario: parseFloat(item.prezzo_unitario),
         })),
-        note: note.trim(),
+        note,
       };
 
       await fetchAPI('/api/fatture', {
@@ -1157,9 +894,9 @@ function FatturaForm({ piatti, onClose }) {
         body: JSON.stringify(body),
       });
 
-      await onClose(true);
+      onClose();
     } catch (error) {
-      alert(`Errore: ${error.message}`);
+      alert('Errore: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -1170,11 +907,7 @@ function FatturaForm({ piatti, onClose }) {
       <div style={{ ...styles.modalContent, maxWidth: '700px' }}>
         <div style={styles.modalHeader}>
           <h2 style={styles.modalTitle}>Nuova Fattura</h2>
-          <button
-            onClick={() => onClose(false)}
-            style={styles.closeButton}
-            className="closeButton"
-          >
+          <button onClick={onClose} style={styles.closeButton} className="closeButton">
             ✕
           </button>
         </div>
@@ -1191,7 +924,7 @@ function FatturaForm({ piatti, onClose }) {
                 + Aggiungi Piatto
               </button>
             </div>
-
+            
             {items.map((item, index) => (
               <div key={index} style={styles.fatturaItemRow}>
                 <select
@@ -1203,11 +936,10 @@ function FatturaForm({ piatti, onClose }) {
                   <option value="">Seleziona piatto...</option>
                   {piatti.map((piatto) => (
                     <option key={piatto.id} value={piatto.id}>
-                      {piatto.nome} - €{formatCurrency(piatto.prezzo)}
+                      {piatto.nome} - €{parseFloat(piatto.prezzo).toFixed(2)}
                     </option>
                   ))}
                 </select>
-
                 <input
                   type="number"
                   min="1"
@@ -1217,11 +949,9 @@ function FatturaForm({ piatti, onClose }) {
                   placeholder="Qtà"
                   required
                 />
-
                 <div style={styles.itemTotal}>
-                  €{formatCurrency(Number(item.quantita) * Number(item.prezzo_unitario))}
+                  €{(item.quantita * item.prezzo_unitario).toFixed(2)}
                 </div>
-
                 <button
                   type="button"
                   onClick={() => removeItem(index)}
@@ -1245,13 +975,13 @@ function FatturaForm({ piatti, onClose }) {
 
           <div style={styles.totalSection}>
             <span style={styles.totalLabel}>Totale:</span>
-            <span style={styles.totalAmount}>€{formatCurrency(calculateTotal())}</span>
+            <span style={styles.totalAmount}>€{calculateTotal().toFixed(2)}</span>
           </div>
 
           <div style={styles.formActions}>
             <button
               type="button"
-              onClick={() => onClose(false)}
+              onClick={onClose}
               style={styles.secondaryButton}
             >
               Annulla
@@ -1272,6 +1002,7 @@ function FatturaForm({ piatti, onClose }) {
 
 // ========== STYLES ==========
 const styles = {
+  // Global
   loadingContainer: {
     display: 'flex',
     justifyContent: 'center',
@@ -1287,7 +1018,8 @@ const styles = {
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
   },
-
+  
+  // Login Page
   loginContainer: {
     display: 'flex',
     justifyContent: 'center',
@@ -1334,14 +1066,21 @@ const styles = {
     cursor: 'pointer',
     transition: 'transform 0.2s',
   },
+  loginHint: {
+    marginTop: '20px',
+    textAlign: 'center',
+    color: '#999',
+  },
 
+  // App Layout
   appContainer: {
     display: 'flex',
     height: '100vh',
     background: '#f5f7fa',
     fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   },
-
+  
+  // Sidebar
   sidebar: {
     width: '280px',
     background: 'linear-gradient(180deg, #2c3e50 0%, #34495e 100%)',
@@ -1415,6 +1154,7 @@ const styles = {
     transition: 'all 0.2s',
   },
 
+  // Main Content
   mainContent: {
     flex: 1,
     overflow: 'auto',
@@ -1430,8 +1170,6 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: '30px',
-    gap: '16px',
-    flexWrap: 'wrap',
   },
   pageTitle: {
     fontFamily: "'Playfair Display', serif",
@@ -1440,6 +1178,7 @@ const styles = {
     fontWeight: '700',
   },
 
+  // Buttons
   primaryButton: {
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
@@ -1507,6 +1246,7 @@ const styles = {
     boxShadow: '0 2px 8px rgba(255, 118, 117, 0.3)',
   },
 
+  // Forms
   formGroup: {
     marginBottom: '20px',
   },
@@ -1522,8 +1262,6 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: '12px',
-    gap: '12px',
-    flexWrap: 'wrap',
   },
   input: {
     width: '100%',
@@ -1547,16 +1285,16 @@ const styles = {
     marginTop: '32px',
     paddingTop: '24px',
     borderTop: '2px solid #f0f2f5',
-    flexWrap: 'wrap',
   },
 
+  // Table
   table: {
     background: 'white',
     borderRadius: '12px',
     overflow: 'hidden',
     boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
   },
-  tableHeaderPiatti: {
+  tableHeader: {
     display: 'grid',
     gridTemplateColumns: '2fr 1fr 1.5fr 1fr',
     padding: '16px 24px',
@@ -1566,26 +1304,9 @@ const styles = {
     color: '#495057',
     borderBottom: '2px solid #e9ecef',
   },
-  tableRowPiatti: {
+  tableRow: {
     display: 'grid',
     gridTemplateColumns: '2fr 1fr 1.5fr 1fr',
-    padding: '16px 24px',
-    borderBottom: '1px solid #e9ecef',
-    alignItems: 'center',
-  },
-  tableHeaderDipendenti: {
-    display: 'grid',
-    gridTemplateColumns: '2fr 1fr 1fr',
-    padding: '16px 24px',
-    background: '#f8f9fa',
-    fontWeight: '600',
-    fontSize: '14px',
-    color: '#495057',
-    borderBottom: '2px solid #e9ecef',
-  },
-  tableRowDipendenti: {
-    display: 'grid',
-    gridTemplateColumns: '2fr 1fr 1fr',
     padding: '16px 24px',
     borderBottom: '1px solid #e9ecef',
     alignItems: 'center',
@@ -1595,6 +1316,7 @@ const styles = {
     color: '#1a1a1a',
   },
 
+  // Modal
   modal: {
     position: 'fixed',
     top: 0,
@@ -1608,7 +1330,6 @@ const styles = {
     zIndex: 1000,
     backdropFilter: 'blur(8px)',
     animation: 'fadeIn 0.2s ease-out',
-    padding: '20px',
   },
   modalContent: {
     background: 'white',
@@ -1653,6 +1374,7 @@ const styles = {
     fontWeight: 'bold',
   },
 
+  // Cards
   cardGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
@@ -1670,7 +1392,6 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: '16px',
-    gap: '12px',
   },
   listinoCardTitle: {
     fontSize: '20px',
@@ -1681,7 +1402,6 @@ const styles = {
     fontSize: '24px',
     fontWeight: '700',
     color: '#667eea',
-    whiteSpace: 'nowrap',
   },
   ingredientiSection: {
     marginTop: '16px',
@@ -1705,6 +1425,7 @@ const styles = {
     padding: '4px 0',
   },
 
+  // Ingredienti Row
   ingredienteRow: {
     display: 'flex',
     gap: '12px',
@@ -1712,6 +1433,7 @@ const styles = {
     alignItems: 'center',
   },
 
+  // Fatture
   fattureList: {
     display: 'flex',
     flexDirection: 'column',
@@ -1730,8 +1452,6 @@ const styles = {
     marginBottom: '20px',
     paddingBottom: '16px',
     borderBottom: '2px solid #e9ecef',
-    gap: '16px',
-    flexWrap: 'wrap',
   },
   fatturaId: {
     fontSize: '18px',
@@ -1799,7 +1519,6 @@ const styles = {
     background: '#f8f9fa',
     borderRadius: '8px',
     marginTop: '20px',
-    gap: '12px',
   },
   totalLabel: {
     fontSize: '18px',
@@ -1812,6 +1531,7 @@ const styles = {
     color: '#667eea',
   },
 
+  // Misc
   roleBadge: {
     display: 'inline-block',
     padding: '4px 12px',
@@ -1842,3 +1562,117 @@ const styles = {
     color: '#999',
   },
 };
+
+// CSS Animation for loader
+const styleSheet = document.createElement('style');
+styleSheet.textContent = `
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;600;700&display=swap');
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes slideUp {
+    from { 
+      opacity: 0;
+      transform: translateY(30px) scale(0.95);
+    }
+    to { 
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  button {
+    font-family: inherit;
+  }
+  
+  button:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.05);
+  }
+  
+  button:active {
+    transform: translateY(0);
+  }
+  
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: #667eea !important;
+    background: white !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+  }
+  
+  .listinoCard:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  }
+  
+  /* Scrollbar personalizzata */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 10px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%);
+  }
+  
+  /* Effetto hover per close button */
+  .closeButton:hover {
+    background: rgba(255,255,255,0.3) !important;
+    transform: rotate(90deg) !important;
+  }
+  
+  /* Animazione per ingredienti row */
+  .ingredienteRow {
+    animation: slideUp 0.2s ease-out;
+  }
+  
+  /* Effetto per edit/delete buttons */
+  .editButton:hover {
+    transform: scale(1.1) !important;
+  }
+  
+  .deleteButton:hover {
+    transform: scale(1.1) !important;
+  }
+  
+  /* Input con effetto */
+  input, select, textarea {
+    transition: all 0.2s ease !important;
+  }
+  
+  input:hover, select:hover, textarea:hover {
+    border-color: #667eea !important;
+  }
+`;
+document.head.appendChild(styleSheet);
