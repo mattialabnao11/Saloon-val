@@ -16,52 +16,37 @@ const pool = new Pool({
     }
 });
 
-// DEBUG: Log connessione (rimuovere dopo il fix)
-console.log('=== DATABASE CONNECTION INFO ===');
-console.log('DATABASE_URL presente:', !!process.env.DATABASE_URL);
-if (process.env.DATABASE_URL) {
-    // Nascondi la password nel log
-    const urlParts = process.env.DATABASE_URL.match(/postgresql:\/\/([^:]+):([^@]+)@([^\/]+)\/(.+)/);
-    if (urlParts) {
-        console.log('User:', urlParts[1]);
-        console.log('Host:', urlParts[3]);
-        console.log('Database:', urlParts[4]);
-    }
-}
-console.log('================================');
-
-// Test connessione al database
-pool.query('SELECT current_database() as db, current_user as user, version()', (err, result) => {
-    if (err) {
-        console.error('❌ Errore connessione database:', err.message);
-    } else {
-        console.log('✅ Connesso a database:', result.rows[0].db);
-        console.log('✅ Utente:', result.rows[0].user);
-    }
+// Verifica connessione database
+pool.on('connect', () => {
+    console.log('✅ Database connesso');
 });
 
-// Test conteggio tabelle
-pool.query("SELECT COUNT(*) as count FROM users", (err, result) => {
-    if (err) {
-        console.error('❌ Tabella users non trovata:', err.message);
-    } else {
-        console.log('✅ Utenti nel database:', result.rows[0].count);
-    }
+pool.on('error', (err) => {
+    console.error('❌ Errore database:', err);
 });
 
 // Middleware
+
+// Trust proxy - IMPORTANTE per Render!
+app.set('trust proxy', 1);
+
 app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:3001',
-    credentials: true
+    origin: process.env.CLIENT_URL || true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 app.use(session({
     secret: process.env.SESSION_SECRET || 'restaurant-secret-key-change-in-production',
     resave: false,
     saveUninitialized: false,
+    proxy: true, // IMPORTANTE per Render
     cookie: {
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000 // 24 ore
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000, // 24 ore
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
     }
 }));
 
