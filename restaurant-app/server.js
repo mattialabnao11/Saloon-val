@@ -31,30 +31,43 @@ pool.on('error', (err) => {
 app.set('trust proxy', 1);
 
 app.use(cors({
-    origin: process.env.CLIENT_URL || true,
+    origin: true, // Accetta tutte le origini in sviluppo/produzione
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['set-cookie']
 }));
+
+// Parse requests PRIMA delle sessioni
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Configurazione sessioni semplificata per Render
 app.use(session({
     secret: process.env.SESSION_SECRET || 'restaurant-secret-key-change-in-production',
     resave: false,
     saveUninitialized: false,
-    proxy: true, // IMPORTANTE per Render
+    name: 'sessionId', // Nome cookie personalizzato
     cookie: {
-        secure: process.env.NODE_ENV === 'production',
+        secure: 'auto', // Auto-detect HTTPS
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000, // 24 ore
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
-    }
+        sameSite: 'lax', // Più permissivo
+        path: '/'
+    },
+    rolling: true // Rinnova sessione ad ogni richiesta
 }));
 
 // Middleware per verificare autenticazione
 const requireAuth = (req, res, next) => {
+    console.log('🔐 Check auth - SessionID:', req.sessionID, 'UserID:', req.session.userId);
+    
     if (!req.session.userId) {
+        console.log('❌ Non autenticato');
         return res.status(401).json({ error: 'Non autenticato' });
     }
+    
+    console.log('✅ Autenticato:', { userId: req.session.userId, ruolo: req.session.ruolo });
     next();
 };
 
@@ -73,12 +86,15 @@ app.post('/api/login', async (req, res) => {
     try {
         const { nome, password } = req.body;
         
+        console.log('📝 Tentativo login:', nome);
+        
         const result = await pool.query(
             'SELECT * FROM users WHERE nome = $1 AND password = $2',
             [nome, password]
         );
 
         if (result.rows.length === 0) {
+            console.log('❌ Login fallito: credenziali non valide');
             return res.status(401).json({ error: 'Credenziali non valide' });
         }
 
@@ -87,13 +103,28 @@ app.post('/api/login', async (req, res) => {
         req.session.nome = user.nome;
         req.session.ruolo = user.ruolo;
 
-        res.json({
-            id: user.id,
-            nome: user.nome,
-            ruolo: user.ruolo
+        // Salva sessione esplicitamente
+        req.session.save((err) => {
+            if (err) {
+                console.error('❌ Errore salvataggio sessione:', err);
+                return res.status(500).json({ error: 'Errore sessione' });
+            }
+            
+            console.log('✅ Login riuscito:', {
+                id: user.id,
+                nome: user.nome,
+                ruolo: user.ruolo,
+                sessionID: req.sessionID
+            });
+            
+            res.json({
+                id: user.id,
+                nome: user.nome,
+                ruolo: user.ruolo
+            });
         });
     } catch (error) {
-        console.error('Errore login:', error);
+        console.error('❌ Errore login:', error);
         res.status(500).json({ error: 'Errore del server' });
     }
 });
