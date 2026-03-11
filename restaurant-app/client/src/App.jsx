@@ -106,7 +106,7 @@ function LoginPage({ onLogin }) {
   return (
     <div style={styles.loginContainer}>
       <div style={styles.loginBox}>
-        <h1 style={styles.loginTitle}>Gestione Ristorante</h1>
+        <h1 style={styles.loginTitle}>Saloon Valentine</h1>
         <p style={styles.loginSubtitle}>Accedi al sistema</p>
 
         {error && <div style={styles.errorBox}>{error}</div>}
@@ -159,7 +159,7 @@ function Sidebar({ user, currentPage, onNavigate, onLogout }) {
   return (
     <div style={styles.sidebar}>
       <div style={styles.sidebarHeader}>
-        <h2 style={styles.sidebarTitle}>🍴 Ristorante</h2>
+        <h2 style={styles.sidebarTitle}>🍴 Saloon</h2>
         <div style={styles.userInfo}>
           <span style={styles.userName}>{user.nome}</span>
           <span style={styles.userRole}>{user.ruolo}</span>
