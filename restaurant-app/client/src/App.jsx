@@ -141,7 +141,6 @@ function LoginPage({ onLogin }) {
         </form>
 
         <div style={styles.loginHint}>
-          <small>Utente default: Admin / admin123</small>
         </div>
       </div>
     </div>
