@@ -154,16 +154,60 @@ app.get('/api/piatti', requireAuth, async (req, res) => {
     try {
         const piatti = await pool.query('SELECT * FROM piatti ORDER BY nome');
         
-        // Per ogni piatto, prendi gli ingredienti
+        // Per ogni piatto, prendi gli ingredienti e calcola il costo
         const piattiConIngredienti = await Promise.all(
             piatti.rows.map(async (piatto) => {
                 const ingredienti = await pool.query(
-                    'SELECT * FROM ingredienti WHERE piatto_id = $1',
+                    `SELECT i.*, m.nome as materiale_nome, m.unita_misura
+                     FROM ingredienti i
+                     LEFT JOIN materiali m ON i.materiale_id = m.id
+                     WHERE i.piatto_id = $1`,
                     [piatto.id]
                 );
+                
+                // Calcola costo produzione
+                let costoProduzione = 0;
+                
+                for (const ing of ingredienti.rows) {
+                    if (ing.materiale_id) {
+                        // Prendi il prezzo migliore per questo materiale
+                        const prezzoMigliore = await pool.query(
+                            `SELECT MIN(prezzo) as prezzo_min 
+                             FROM prezzi_venditori 
+                             WHERE materiale_id = $1`,
+                            [ing.materiale_id]
+                        );
+                        
+                        if (prezzoMigliore.rows[0].prezzo_min) {
+                            // Estrai il numero dalla quantità (es. "100g" -> 100)
+                            const quantitaNumerica = parseFloat(ing.quantita.match(/[\d.]+/)?.[0] || 0);
+                            const unitaIngredienti = ing.quantita.match(/[a-zA-Z]+/)?.[0]?.toLowerCase() || '';
+                            
+                            // Calcolo semplificato: assumiamo che le unità corrispondano
+                            // In produzione, dovresti gestire conversioni (g->kg, ml->l, ecc.)
+                            let fattoreConversione = 1;
+                            
+                            // Conversioni base
+                            if (unitaIngredienti === 'g' && ing.unita_misura === 'kg') {
+                                fattoreConversione = 0.001; // 1g = 0.001kg
+                            } else if (unitaIngredienti === 'ml' && ing.unita_misura === 'litri') {
+                                fattoreConversione = 0.001; // 1ml = 0.001L
+                            }
+                            
+                            const costoIngrediente = quantitaNumerica * fattoreConversione * parseFloat(prezzoMigliore.rows[0].prezzo_min);
+                            costoProduzione += costoIngrediente;
+                        }
+                    }
+                }
+                
                 return {
                     ...piatto,
-                    ingredienti: ingredienti.rows
+                    ingredienti: ingredienti.rows,
+                    costo_produzione: costoProduzione > 0 ? costoProduzione : null,
+                    margine: costoProduzione > 0 ? parseFloat(piatto.prezzo) - costoProduzione : null,
+                    percentuale_margine: costoProduzione > 0 
+                        ? ((parseFloat(piatto.prezzo) - costoProduzione) / parseFloat(piatto.prezzo) * 100)
+                        : null
                 };
             })
         );
@@ -191,12 +235,12 @@ app.post('/api/piatti', requireDirettore, async (req, res) => {
 
         const piatto = piattoResult.rows[0];
 
-        // Inserisci ingredienti
+        // Inserisci ingredienti con materiale_id
         if (ingredienti && ingredienti.length > 0) {
             for (const ing of ingredienti) {
                 await client.query(
-                    'INSERT INTO ingredienti (piatto_id, nome_ingrediente, quantita) VALUES ($1, $2, $3)',
-                    [piatto.id, ing.nome_ingrediente, ing.quantita]
+                    'INSERT INTO ingredienti (piatto_id, nome_ingrediente, quantita, materiale_id) VALUES ($1, $2, $3, $4)',
+                    [piatto.id, ing.nome_ingrediente, ing.quantita, ing.materiale_id || null]
                 );
             }
         }
@@ -205,13 +249,18 @@ app.post('/api/piatti', requireDirettore, async (req, res) => {
 
         // Recupera il piatto completo con ingredienti
         const ingredientiResult = await pool.query(
-            'SELECT * FROM ingredienti WHERE piatto_id = $1',
+            `SELECT i.*, m.nome as materiale_nome, m.unita_misura
+             FROM ingredienti i
+             LEFT JOIN materiali m ON i.materiale_id = m.id
+             WHERE i.piatto_id = $1`,
             [piatto.id]
         );
 
         res.json({
             ...piatto,
-            ingredienti: ingredientiResult.rows
+            ingredienti: ingredientiResult.rows,
+            costo_produzione: null,
+            margine: null
         });
     } catch (error) {
         await client.query('ROLLBACK');
@@ -240,22 +289,25 @@ app.put('/api/piatti/:id', requireDirettore, async (req, res) => {
         // Elimina vecchi ingredienti
         await client.query('DELETE FROM ingredienti WHERE piatto_id = $1', [id]);
 
-        // Inserisci nuovi ingredienti
+        // Inserisci nuovi ingredienti con materiale_id
         if (ingredienti && ingredienti.length > 0) {
             for (const ing of ingredienti) {
                 await client.query(
-                    'INSERT INTO ingredienti (piatto_id, nome_ingrediente, quantita) VALUES ($1, $2, $3)',
-                    [id, ing.nome_ingrediente, ing.quantita]
+                    'INSERT INTO ingredienti (piatto_id, nome_ingrediente, quantita, materiale_id) VALUES ($1, $2, $3, $4)',
+                    [id, ing.nome_ingrediente, ing.quantita, ing.materiale_id || null]
                 );
             }
         }
 
         await client.query('COMMIT');
 
-        // Recupera il piatto aggiornato
+        // Recupera il piatto aggiornato con costo
         const piattoResult = await pool.query('SELECT * FROM piatti WHERE id = $1', [id]);
         const ingredientiResult = await pool.query(
-            'SELECT * FROM ingredienti WHERE piatto_id = $1',
+            `SELECT i.*, m.nome as materiale_nome, m.unita_misura
+             FROM ingredienti i
+             LEFT JOIN materiali m ON i.materiale_id = m.id
+             WHERE i.piatto_id = $1`,
             [id]
         );
 
