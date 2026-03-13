@@ -434,6 +434,153 @@ app.post('/api/fatture', requireAuth, async (req, res) => {
     }
 });
 
+// ============ LISTINI RANCH ROUTES ============
+
+// Get tutti i materiali con prezzi venditori
+app.get('/api/materiali', requireDirettore, async (req, res) => {
+    try {
+        const materiali = await pool.query('SELECT * FROM materiali ORDER BY nome');
+        
+        // Per ogni materiale, prendi i prezzi dei venditori
+        const materialiConPrezzi = await Promise.all(
+            materiali.rows.map(async (materiale) => {
+                const prezzi = await pool.query(
+                    'SELECT * FROM prezzi_venditori WHERE materiale_id = $1 ORDER BY prezzo',
+                    [materiale.id]
+                );
+                
+                // Trova il prezzo migliore (più basso)
+                const prezzoMigliore = prezzi.rows.length > 0 
+                    ? Math.min(...prezzi.rows.map(p => parseFloat(p.prezzo)))
+                    : null;
+                
+                return {
+                    ...materiale,
+                    prezzi_venditori: prezzi.rows,
+                    prezzo_migliore: prezzoMigliore
+                };
+            })
+        );
+
+        res.json(materialiConPrezzi);
+    } catch (error) {
+        console.error('Errore get materiali:', error);
+        res.status(500).json({ error: 'Errore del server' });
+    }
+});
+
+// Crea nuovo materiale
+app.post('/api/materiali', requireDirettore, async (req, res) => {
+    try {
+        const { nome, unita_misura, note } = req.body;
+        
+        const result = await pool.query(
+            'INSERT INTO materiali (nome, unita_misura, note) VALUES ($1, $2, $3) RETURNING *',
+            [nome, unita_misura, note]
+        );
+
+        res.json({
+            ...result.rows[0],
+            prezzi_venditori: [],
+            prezzo_migliore: null
+        });
+    } catch (error) {
+        console.error('Errore creazione materiale:', error);
+        res.status(500).json({ error: 'Errore del server' });
+    }
+});
+
+// Modifica materiale
+app.put('/api/materiali/:id', requireDirettore, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { nome, unita_misura, note } = req.body;
+
+        const result = await pool.query(
+            'UPDATE materiali SET nome = $1, unita_misura = $2, note = $3 WHERE id = $4 RETURNING *',
+            [nome, unita_misura, note, id]
+        );
+
+        // Recupera i prezzi aggiornati
+        const prezzi = await pool.query(
+            'SELECT * FROM prezzi_venditori WHERE materiale_id = $1 ORDER BY prezzo',
+            [id]
+        );
+
+        const prezzoMigliore = prezzi.rows.length > 0 
+            ? Math.min(...prezzi.rows.map(p => parseFloat(p.prezzo)))
+            : null;
+
+        res.json({
+            ...result.rows[0],
+            prezzi_venditori: prezzi.rows,
+            prezzo_migliore: prezzoMigliore
+        });
+    } catch (error) {
+        console.error('Errore modifica materiale:', error);
+        res.status(500).json({ error: 'Errore del server' });
+    }
+});
+
+// Elimina materiale
+app.delete('/api/materiali/:id', requireDirettore, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await pool.query('DELETE FROM materiali WHERE id = $1', [id]);
+        res.json({ message: 'Materiale eliminato' });
+    } catch (error) {
+        console.error('Errore eliminazione materiale:', error);
+        res.status(500).json({ error: 'Errore del server' });
+    }
+});
+
+// Aggiungi prezzo venditore
+app.post('/api/prezzi-venditori', requireDirettore, async (req, res) => {
+    try {
+        const { materiale_id, nome_venditore, prezzo, note } = req.body;
+
+        const result = await pool.query(
+            'INSERT INTO prezzi_venditori (materiale_id, nome_venditore, prezzo, note) VALUES ($1, $2, $3, $4) RETURNING *',
+            [materiale_id, nome_venditore, prezzo, note]
+        );
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Errore aggiunta prezzo:', error);
+        res.status(500).json({ error: 'Errore del server' });
+    }
+});
+
+// Modifica prezzo venditore
+app.put('/api/prezzi-venditori/:id', requireDirettore, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { nome_venditore, prezzo, note } = req.body;
+
+        const result = await pool.query(
+            'UPDATE prezzi_venditori SET nome_venditore = $1, prezzo = $2, note = $3, data_aggiornamento = CURRENT_TIMESTAMP WHERE id = $4 RETURNING *',
+            [nome_venditore, prezzo, note, id]
+        );
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Errore modifica prezzo:', error);
+        res.status(500).json({ error: 'Errore del server' });
+    }
+});
+
+// Elimina prezzo venditore
+app.delete('/api/prezzi-venditori/:id', requireDirettore, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await pool.query('DELETE FROM prezzi_venditori WHERE id = $1', [id]);
+        res.json({ message: 'Prezzo eliminato' });
+    } catch (error) {
+        console.error('Errore eliminazione prezzo:', error);
+        res.status(500).json({ error: 'Errore del server' });
+    }
+});
+
 // ============ START SERVER ============
 
 // Serve static files from React build in production
