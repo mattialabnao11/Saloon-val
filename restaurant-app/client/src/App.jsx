@@ -106,7 +106,7 @@ function LoginPage({ onLogin }) {
   return (
     <div style={styles.loginContainer}>
       <div style={styles.loginBox}>
-        <h1 style={styles.loginTitle}>Saloon Valentine</h1>
+        <h1 style={styles.loginTitle}>Gestione Ristorante</h1>
         <p style={styles.loginSubtitle}>Accedi al sistema</p>
 
         {error && <div style={styles.errorBox}>{error}</div>}
@@ -141,6 +141,7 @@ function LoginPage({ onLogin }) {
         </form>
 
         <div style={styles.loginHint}>
+          <small>Utente default: Admin / admin123</small>
         </div>
       </div>
     </div>
@@ -154,12 +155,13 @@ function Sidebar({ user, currentPage, onNavigate, onLogout }) {
     { id: 'fatture', label: 'Fatture', icon: '🧾', allowed: ['Direttore', 'Dipendente'] },
     { id: 'piatti', label: 'Gestione Piatti', icon: '🍝', allowed: ['Direttore'] },
     { id: 'dipendenti', label: 'Gestione Dipendenti', icon: '👥', allowed: ['Direttore'] },
+    { id: 'listini-ranch', label: 'Listini Ranch', icon: '🏪', allowed: ['Direttore'] },
   ];
 
   return (
     <div style={styles.sidebar}>
       <div style={styles.sidebarHeader}>
-        <h2 style={styles.sidebarTitle}>🍴 Saloon</h2>
+        <h2 style={styles.sidebarTitle}>🍴 Ristorante</h2>
         <div style={styles.userInfo}>
           <span style={styles.userName}>{user.nome}</span>
           <span style={styles.userRole}>{user.ruolo}</span>
@@ -199,6 +201,7 @@ function MainContent({ currentPage, user }) {
       {currentPage === 'fatture' && <FatturePage />}
       {currentPage === 'piatti' && <GestionePiattiPage />}
       {currentPage === 'dipendenti' && <GestioneDipendentiPage />}
+      {currentPage === 'listini-ranch' && <ListiniRanchPage />}
     </div>
   );
 }
@@ -999,6 +1002,441 @@ function FatturaForm({ piatti, onClose }) {
   );
 }
 
+// ========== LISTINI RANCH PAGE ==========
+function ListiniRanchPage() {
+  const [materiali, setMateriali] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editingMateriale, setEditingMateriale] = useState(null);
+  const [editingPrezzo, setEditingPrezzo] = useState(null);
+  const [showMaterialeForm, setShowMaterialeForm] = useState(false);
+  const [showPrezzoForm, setShowPrezzoForm] = useState(false);
+  const [selectedMateriale, setSelectedMateriale] = useState(null);
+
+  useEffect(() => {
+    loadMateriali();
+  }, []);
+
+  const loadMateriali = async () => {
+    try {
+      const data = await fetchAPI('/api/materiali');
+      setMateriali(data);
+    } catch (error) {
+      console.error('Errore caricamento materiali:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteMateriale = async (id) => {
+    if (!window.confirm('Sei sicuro di voler eliminare questo materiale e tutti i suoi prezzi?')) return;
+
+    try {
+      await fetchAPI(`/api/materiali/${id}`, { method: 'DELETE' });
+      loadMateriali();
+    } catch (error) {
+      alert('Errore: ' + error.message);
+    }
+  };
+
+  const handleDeletePrezzo = async (id) => {
+    if (!window.confirm('Sei sicuro di voler eliminare questo prezzo?')) return;
+
+    try {
+      await fetchAPI(`/api/prezzi-venditori/${id}`, { method: 'DELETE' });
+      loadMateriali();
+    } catch (error) {
+      alert('Errore: ' + error.message);
+    }
+  };
+
+  const handleEditMateriale = (materiale) => {
+    setEditingMateriale(materiale);
+    setShowMaterialeForm(true);
+  };
+
+  const handleAddPrezzo = (materiale) => {
+    setSelectedMateriale(materiale);
+    setEditingPrezzo(null);
+    setShowPrezzoForm(true);
+  };
+
+  const handleEditPrezzo = (materiale, prezzo) => {
+    setSelectedMateriale(materiale);
+    setEditingPrezzo(prezzo);
+    setShowPrezzoForm(true);
+  };
+
+  const handleFormClose = () => {
+    setShowMaterialeForm(false);
+    setShowPrezzoForm(false);
+    setEditingMateriale(null);
+    setEditingPrezzo(null);
+    setSelectedMateriale(null);
+    loadMateriali();
+  };
+
+  if (loading) return <div style={styles.loading}>Caricamento...</div>;
+
+  return (
+    <div style={styles.pageContainer}>
+      <div style={styles.pageHeader}>
+        <h1 style={styles.pageTitle}>🏪 Listini Ranch - Confronto Prezzi Fornitori</h1>
+        <button
+          onClick={() => setShowMaterialeForm(true)}
+          style={styles.primaryButton}
+        >
+          + Nuovo Materiale
+        </button>
+      </div>
+
+      {showMaterialeForm && (
+        <MaterialeForm
+          materiale={editingMateriale}
+          onClose={handleFormClose}
+        />
+      )}
+
+      {showPrezzoForm && (
+        <PrezzoVenditoreForm
+          materiale={selectedMateriale}
+          prezzo={editingPrezzo}
+          onClose={handleFormClose}
+        />
+      )}
+
+      <div style={styles.ranchContainer}>
+        {materiali.map((materiale) => (
+          <div key={materiale.id} style={styles.ranchCard}>
+            <div style={styles.ranchCardHeader}>
+              <div>
+                <h3 style={styles.ranchCardTitle}>{materiale.nome}</h3>
+                <p style={styles.ranchCardUnit}>Unità: {materiale.unita_misura}</p>
+                {materiale.note && (
+                  <p style={styles.ranchCardNote}>{materiale.note}</p>
+                )}
+              </div>
+              <div style={styles.ranchCardActions}>
+                <button
+                  onClick={() => handleEditMateriale(materiale)}
+                  style={styles.editButton}
+                  className="editButton"
+                  title="Modifica materiale"
+                >
+                  ✏️
+                </button>
+                <button
+                  onClick={() => handleDeleteMateriale(materiale.id)}
+                  style={styles.deleteButton}
+                  className="deleteButton"
+                  title="Elimina materiale"
+                >
+                  🗑️
+                </button>
+              </div>
+            </div>
+
+            <div style={styles.ranchPrezziSection}>
+              <div style={styles.ranchPrezziHeader}>
+                <h4 style={styles.ranchPrezziTitle}>Prezzi Fornitori</h4>
+                <button
+                  onClick={() => handleAddPrezzo(materiale)}
+                  style={styles.smallButton}
+                >
+                  + Aggiungi Prezzo
+                </button>
+              </div>
+
+              {materiale.prezzi_venditori && materiale.prezzi_venditori.length > 0 ? (
+                <div style={styles.ranchPrezziList}>
+                  {materiale.prezzi_venditori.map((prezzo) => {
+                    const isMigliore = parseFloat(prezzo.prezzo) === materiale.prezzo_migliore;
+                    
+                    return (
+                      <div
+                        key={prezzo.id}
+                        style={{
+                          ...styles.ranchPrezzoItem,
+                          ...(isMigliore ? styles.ranchPrezzoMigliore : {})
+                        }}
+                      >
+                        <div style={styles.ranchPrezzoInfo}>
+                          <div style={styles.ranchPrezzoVenditore}>
+                            {prezzo.nome_venditore}
+                            {isMigliore && (
+                              <span style={styles.ranchBadgeMigliore}>🏆 Migliore</span>
+                            )}
+                          </div>
+                          <div style={styles.ranchPrezzoAmount}>
+                            €{parseFloat(prezzo.prezzo).toFixed(2)}/{materiale.unita_misura}
+                          </div>
+                          {prezzo.note && (
+                            <div style={styles.ranchPrezzoNote}>{prezzo.note}</div>
+                          )}
+                          <div style={styles.ranchPrezzoData}>
+                            Aggiornato: {new Date(prezzo.data_aggiornamento).toLocaleDateString('it-IT')}
+                          </div>
+                        </div>
+                        <div style={styles.ranchPrezzoActions}>
+                          <button
+                            onClick={() => handleEditPrezzo(materiale, prezzo)}
+                            style={styles.editButton}
+                            className="editButton"
+                            title="Modifica prezzo"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDeletePrezzo(prezzo.id)}
+                            style={styles.deleteButton}
+                            className="deleteButton"
+                            title="Elimina prezzo"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={styles.ranchNoPrezzi}>
+                  Nessun prezzo disponibile. Aggiungi i prezzi dei fornitori per confrontarli.
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {materiali.length === 0 && (
+        <div style={styles.emptyState}>
+          Nessun materiale disponibile. Inizia aggiungendo i materiali che acquisti.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ========== MATERIALE FORM ==========
+function MaterialeForm({ materiale, onClose }) {
+  const [nome, setNome] = useState(materiale?.nome || '');
+  const [unitaMisura, setUnitaMisura] = useState(materiale?.unita_misura || '');
+  const [note, setNote] = useState(materiale?.note || '');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const body = { nome, unita_misura: unitaMisura, note };
+
+      if (materiale) {
+        await fetchAPI(`/api/materiali/${materiale.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(body),
+        });
+      } else {
+        await fetchAPI('/api/materiali', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        });
+      }
+
+      onClose();
+    } catch (error) {
+      alert('Errore: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={styles.modal}>
+      <div style={styles.modalContent}>
+        <div style={styles.modalHeader}>
+          <h2 style={styles.modalTitle}>
+            {materiale ? 'Modifica Materiale' : 'Nuovo Materiale'}
+          </h2>
+          <button onClick={onClose} style={styles.closeButton} className="closeButton">
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={styles.form}>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Nome Materiale *</label>
+            <input
+              type="text"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              style={styles.input}
+              placeholder="es. Farina 00, Olio EVO, ecc."
+              required
+            />
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Unità di Misura *</label>
+            <input
+              type="text"
+              value={unitaMisura}
+              onChange={(e) => setUnitaMisura(e.target.value)}
+              style={styles.input}
+              placeholder="es. kg, litri, pezzi, ecc."
+              required
+            />
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Note (opzionale)</label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              style={{ ...styles.input, minHeight: '80px', resize: 'vertical' }}
+              placeholder="Informazioni aggiuntive sul materiale..."
+            />
+          </div>
+
+          <div style={styles.formActions}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={styles.secondaryButton}
+            >
+              Annulla
+            </button>
+            <button
+              type="submit"
+              style={styles.primaryButton}
+              disabled={loading}
+            >
+              {loading ? 'Salvataggio...' : 'Salva'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ========== PREZZO VENDITORE FORM ==========
+function PrezzoVenditoreForm({ materiale, prezzo, onClose }) {
+  const [nomeVenditore, setNomeVenditore] = useState(prezzo?.nome_venditore || '');
+  const [prezzoValue, setPrezzoValue] = useState(prezzo?.prezzo || '');
+  const [note, setNote] = useState(prezzo?.note || '');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const body = {
+        materiale_id: materiale.id,
+        nome_venditore: nomeVenditore,
+        prezzo: parseFloat(prezzoValue),
+        note
+      };
+
+      if (prezzo) {
+        await fetchAPI(`/api/prezzi-venditori/${prezzo.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(body),
+        });
+      } else {
+        await fetchAPI('/api/prezzi-venditori', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        });
+      }
+
+      onClose();
+    } catch (error) {
+      alert('Errore: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={styles.modal}>
+      <div style={styles.modalContent}>
+        <div style={styles.modalHeader}>
+          <h2 style={styles.modalTitle}>
+            {prezzo ? 'Modifica Prezzo' : 'Nuovo Prezzo'}
+          </h2>
+          <button onClick={onClose} style={styles.closeButton} className="closeButton">
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={styles.form}>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Materiale</label>
+            <div style={styles.ranchMaterialeInfo}>
+              <strong>{materiale.nome}</strong>
+              <span style={styles.ranchMaterialeUnit}>({materiale.unita_misura})</span>
+            </div>
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Nome Fornitore *</label>
+            <input
+              type="text"
+              value={nomeVenditore}
+              onChange={(e) => setNomeVenditore(e.target.value)}
+              style={styles.input}
+              placeholder="es. Fornitore A, Grossista XYZ, ecc."
+              required
+            />
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Prezzo (€/{materiale.unita_misura}) *</label>
+            <input
+              type="number"
+              step="0.01"
+              value={prezzoValue}
+              onChange={(e) => setPrezzoValue(e.target.value)}
+              style={styles.input}
+              placeholder="0.00"
+              required
+            />
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Note (opzionale)</label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              style={{ ...styles.input, minHeight: '80px', resize: 'vertical' }}
+              placeholder="es. Min. ordine, condizioni di pagamento, ecc."
+            />
+          </div>
+
+          <div style={styles.formActions}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={styles.secondaryButton}
+            >
+              Annulla
+            </button>
+            <button
+              type="submit"
+              style={styles.primaryButton}
+              disabled={loading}
+            >
+              {loading ? 'Salvataggio...' : 'Salva'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ========== STYLES ==========
 const styles = {
   // Global
@@ -1559,6 +1997,143 @@ const styles = {
     padding: '40px',
     fontSize: '16px',
     color: '#999',
+  },
+  
+  // Listini Ranch Styles
+  ranchContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '24px',
+  },
+  ranchCard: {
+    background: 'white',
+    borderRadius: '16px',
+    padding: '28px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+    transition: 'all 0.2s',
+  },
+  ranchCardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: '24px',
+    paddingBottom: '20px',
+    borderBottom: '2px solid #f0f2f5',
+  },
+  ranchCardTitle: {
+    fontSize: '22px',
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: '8px',
+  },
+  ranchCardUnit: {
+    fontSize: '14px',
+    color: '#666',
+    fontWeight: '500',
+  },
+  ranchCardNote: {
+    fontSize: '13px',
+    color: '#999',
+    marginTop: '4px',
+    fontStyle: 'italic',
+  },
+  ranchCardActions: {
+    display: 'flex',
+    gap: '8px',
+  },
+  ranchPrezziSection: {
+    marginTop: '20px',
+  },
+  ranchPrezziHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '16px',
+  },
+  ranchPrezziTitle: {
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#1a1a1a',
+  },
+  ranchPrezziList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+  },
+  ranchPrezzoItem: {
+    background: '#f8f9fa',
+    borderRadius: '12px',
+    padding: '16px 20px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    border: '2px solid #e9ecef',
+    transition: 'all 0.2s',
+  },
+  ranchPrezzoMigliore: {
+    background: 'linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%)',
+    border: '2px solid #28a745',
+    boxShadow: '0 4px 15px rgba(40, 167, 69, 0.2)',
+  },
+  ranchPrezzoInfo: {
+    flex: 1,
+  },
+  ranchPrezzoVenditore: {
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: '6px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  ranchBadgeMigliore: {
+    background: '#28a745',
+    color: 'white',
+    padding: '4px 12px',
+    borderRadius: '12px',
+    fontSize: '12px',
+    fontWeight: '700',
+  },
+  ranchPrezzoAmount: {
+    fontSize: '20px',
+    fontWeight: '700',
+    color: '#667eea',
+    marginBottom: '6px',
+  },
+  ranchPrezzoNote: {
+    fontSize: '13px',
+    color: '#666',
+    marginBottom: '4px',
+  },
+  ranchPrezzoData: {
+    fontSize: '12px',
+    color: '#999',
+  },
+  ranchPrezzoActions: {
+    display: 'flex',
+    gap: '8px',
+  },
+  ranchNoPrezzi: {
+    textAlign: 'center',
+    padding: '40px 20px',
+    color: '#999',
+    fontSize: '15px',
+    background: '#f8f9fa',
+    borderRadius: '12px',
+    border: '2px dashed #dee2e6',
+  },
+  ranchMaterialeInfo: {
+    background: '#f0f2f5',
+    padding: '12px 16px',
+    borderRadius: '8px',
+    fontSize: '15px',
+    color: '#1a1a1a',
+  },
+  ranchMaterialeUnit: {
+    color: '#666',
+    marginLeft: '8px',
+    fontSize: '14px',
   },
 };
 
