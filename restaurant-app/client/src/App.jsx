@@ -141,7 +141,6 @@ function LoginPage({ onLogin }) {
         </form>
 
         <div style={styles.loginHint}>
-          <small>Utente default: Admin / admin123</small>
         </div>
       </div>
     </div>
@@ -233,26 +232,74 @@ function ListinoPage() {
       <h1 style={styles.pageTitle}>📋 Listino Piatti</h1>
 
       <div style={styles.cardGrid}>
-        {piatti.map((piatto) => (
-          <div key={piatto.id} style={styles.listinoCard}>
-            <div style={styles.listinoCardHeader}>
-              <h3 style={styles.listinoCardTitle}>{piatto.nome}</h3>
-              <span style={styles.listinoCardPrice}>€{parseFloat(piatto.prezzo).toFixed(2)}</span>
-            </div>
-            {piatto.ingredienti && piatto.ingredienti.length > 0 && (
-              <div style={styles.ingredientiSection}>
-                <p style={styles.ingredientiLabel}>Ingredienti necessari:</p>
-                <ul style={styles.ingredientiList}>
-                  {piatto.ingredienti.map((ing, idx) => (
-                    <li key={idx} style={styles.ingredienteItem}>
-                      {ing.nome_ingrediente} - {ing.quantita}
-                    </li>
-                  ))}
-                </ul>
+        {piatti.map((piatto) => {
+          const costoConosciuto = piatto.costo_produzione !== null && piatto.costo_produzione > 0;
+          const marginePercentuale = piatto.percentuale_margine;
+          
+          return (
+            <div key={piatto.id} style={styles.listinoCard}>
+              <div style={styles.listinoCardHeader}>
+                <h3 style={styles.listinoCardTitle}>{piatto.nome}</h3>
+                <span style={styles.listinoCardPrice}>€{parseFloat(piatto.prezzo).toFixed(2)}</span>
               </div>
-            )}
-          </div>
-        ))}
+              
+              {/* Costo Produzione */}
+              {costoConosciuto && (
+                <div style={styles.costoProduzione}>
+                  <div style={styles.costoRow}>
+                    <span style={styles.costoLabel}>Costo produzione:</span>
+                    <span style={styles.costoValue}>
+                      €{piatto.costo_produzione.toFixed(2)}
+                    </span>
+                  </div>
+                  <div style={styles.costoRow}>
+                    <span style={styles.costoLabel}>Margine:</span>
+                    <span style={{
+                      ...styles.costoValue,
+                      color: piatto.margine > 0 ? '#28a745' : '#dc3545'
+                    }}>
+                      €{piatto.margine.toFixed(2)} ({marginePercentuale.toFixed(1)}%)
+                    </span>
+                  </div>
+                  <div style={styles.margineBar}>
+                    <div style={{
+                      ...styles.margineBarFill,
+                      width: `${Math.min(marginePercentuale, 100)}%`,
+                      background: marginePercentuale > 50 
+                        ? 'linear-gradient(90deg, #28a745 0%, #20c997 100%)'
+                        : marginePercentuale > 30
+                        ? 'linear-gradient(90deg, #ffc107 0%, #fd7e14 100%)'
+                        : 'linear-gradient(90deg, #dc3545 0%, #e74c3c 100%)'
+                    }}></div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Ingredienti */}
+              {piatto.ingredienti && piatto.ingredienti.length > 0 && (
+                <div style={styles.ingredientiSection}>
+                  <p style={styles.ingredientiLabel}>Ingredienti necessari:</p>
+                  <ul style={styles.ingredientiList}>
+                    {piatto.ingredienti.map((ing, idx) => (
+                      <li key={idx} style={styles.ingredienteItem}>
+                        {ing.nome_ingrediente} - {ing.quantita}
+                        {!ing.materiale_id && (
+                          <span style={styles.ingredienteWarning}>⚠️ Non collegato</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {!costoConosciuto && piatto.ingredienti && piatto.ingredienti.length > 0 && (
+                <div style={styles.costoWarning}>
+                  ⚠️ Collega gli ingredienti ai materiali in Listini Ranch per vedere il costo
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {piatti.length === 0 && (
@@ -373,10 +420,24 @@ function PiattoForm({ piatto, onClose }) {
   const [nome, setNome] = useState(piatto?.nome || '');
   const [prezzo, setPrezzo] = useState(piatto?.prezzo || '');
   const [ingredienti, setIngredienti] = useState(piatto?.ingredienti || []);
+  const [materiali, setMateriali] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    loadMateriali();
+  }, []);
+
+  const loadMateriali = async () => {
+    try {
+      const data = await fetchAPI('/api/materiali');
+      setMateriali(data);
+    } catch (error) {
+      console.error('Errore caricamento materiali:', error);
+    }
+  };
+
   const addIngrediente = () => {
-    setIngredienti([...ingredienti, { nome_ingrediente: '', quantita: '' }]);
+    setIngredienti([...ingredienti, { materiale_id: '', nome_ingrediente: '', quantita: '' }]);
   };
 
   const removeIngrediente = (index) => {
@@ -385,7 +446,18 @@ function PiattoForm({ piatto, onClose }) {
 
   const updateIngrediente = (index, field, value) => {
     const newIngredienti = [...ingredienti];
-    newIngredienti[index][field] = value;
+    
+    if (field === 'materiale_id') {
+      const materiale = materiali.find(m => m.id === parseInt(value));
+      if (materiale) {
+        newIngredienti[index].materiale_id = materiale.id;
+        newIngredienti[index].nome_ingrediente = materiale.nome;
+        newIngredienti[index].unita_misura = materiale.unita_misura;
+      }
+    } else {
+      newIngredienti[index][field] = value;
+    }
+    
     setIngredienti(newIngredienti);
   };
 
@@ -398,7 +470,7 @@ function PiattoForm({ piatto, onClose }) {
         nome,
         prezzo: parseFloat(prezzo),
         ingredienti: ingredienti.filter(
-          (ing) => ing.nome_ingrediente && ing.quantita
+          (ing) => ing.materiale_id && ing.quantita
         ),
       };
 
@@ -460,7 +532,7 @@ function PiattoForm({ piatto, onClose }) {
 
           <div style={styles.formGroup}>
             <div style={styles.labelRow}>
-              <label style={styles.label}>Ingredienti</label>
+              <label style={styles.label}>Ingredienti (da Listini Ranch)</label>
               <button
                 type="button"
                 onClick={addIngrediente}
@@ -471,23 +543,26 @@ function PiattoForm({ piatto, onClose }) {
             </div>
             {ingredienti.map((ing, index) => (
               <div key={index} style={styles.ingredienteRow} className="ingredienteRow">
-                <input
-                  type="text"
-                  placeholder="Nome ingrediente"
-                  value={ing.nome_ingrediente}
-                  onChange={(e) =>
-                    updateIngrediente(index, 'nome_ingrediente', e.target.value)
-                  }
+                <select
+                  value={ing.materiale_id || ''}
+                  onChange={(e) => updateIngrediente(index, 'materiale_id', e.target.value)}
                   style={{ ...styles.input, flex: 2 }}
-                />
+                  required
+                >
+                  <option value="">Seleziona materiale...</option>
+                  {materiali.map((mat) => (
+                    <option key={mat.id} value={mat.id}>
+                      {mat.nome} ({mat.unita_misura})
+                    </option>
+                  ))}
+                </select>
                 <input
                   type="text"
-                  placeholder="Quantità"
+                  placeholder={ing.unita_misura ? `Quantità (${ing.unita_misura})` : 'Quantità'}
                   value={ing.quantita}
-                  onChange={(e) =>
-                    updateIngrediente(index, 'quantita', e.target.value)
-                  }
+                  onChange={(e) => updateIngrediente(index, 'quantita', e.target.value)}
                   style={{ ...styles.input, flex: 1 }}
+                  required
                 />
                 <button
                   type="button"
@@ -498,6 +573,11 @@ function PiattoForm({ piatto, onClose }) {
                 </button>
               </div>
             ))}
+            {ingredienti.length === 0 && (
+              <div style={styles.ranchNoPrezzi}>
+                Aggiungi ingredienti dal menu Listini Ranch
+              </div>
+            )}
           </div>
 
           <div style={styles.formActions}>
@@ -1011,6 +1091,7 @@ function ListiniRanchPage() {
   const [showMaterialeForm, setShowMaterialeForm] = useState(false);
   const [showPrezzoForm, setShowPrezzoForm] = useState(false);
   const [selectedMateriale, setSelectedMateriale] = useState(null);
+  const [expandedCards, setExpandedCards] = useState({});
 
   useEffect(() => {
     loadMateriali();
@@ -1027,7 +1108,15 @@ function ListiniRanchPage() {
     }
   };
 
-  const handleDeleteMateriale = async (id) => {
+  const toggleCard = (id) => {
+    setExpandedCards(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  const handleDeleteMateriale = async (id, e) => {
+    e.stopPropagation(); // Previeni il toggle della card
     if (!window.confirm('Sei sicuro di voler eliminare questo materiale e tutti i suoi prezzi?')) return;
 
     try {
@@ -1038,7 +1127,8 @@ function ListiniRanchPage() {
     }
   };
 
-  const handleDeletePrezzo = async (id) => {
+  const handleDeletePrezzo = async (id, e) => {
+    e.stopPropagation();
     if (!window.confirm('Sei sicuro di voler eliminare questo prezzo?')) return;
 
     try {
@@ -1049,18 +1139,21 @@ function ListiniRanchPage() {
     }
   };
 
-  const handleEditMateriale = (materiale) => {
+  const handleEditMateriale = (materiale, e) => {
+    e.stopPropagation();
     setEditingMateriale(materiale);
     setShowMaterialeForm(true);
   };
 
-  const handleAddPrezzo = (materiale) => {
+  const handleAddPrezzo = (materiale, e) => {
+    e.stopPropagation();
     setSelectedMateriale(materiale);
     setEditingPrezzo(null);
     setShowPrezzoForm(true);
   };
 
-  const handleEditPrezzo = (materiale, prezzo) => {
+  const handleEditPrezzo = (materiale, prezzo, e) => {
+    e.stopPropagation();
     setSelectedMateriale(materiale);
     setEditingPrezzo(prezzo);
     setShowPrezzoForm(true);
@@ -1105,107 +1198,150 @@ function ListiniRanchPage() {
       )}
 
       <div style={styles.ranchContainer}>
-        {materiali.map((materiale) => (
-          <div key={materiale.id} style={styles.ranchCard}>
-            <div style={styles.ranchCardHeader}>
-              <div>
-                <h3 style={styles.ranchCardTitle}>{materiale.nome}</h3>
-                <p style={styles.ranchCardUnit}>Unità: {materiale.unita_misura}</p>
-                {materiale.note && (
-                  <p style={styles.ranchCardNote}>{materiale.note}</p>
-                )}
-              </div>
-              <div style={styles.ranchCardActions}>
-                <button
-                  onClick={() => handleEditMateriale(materiale)}
-                  style={styles.editButton}
-                  className="editButton"
-                  title="Modifica materiale"
-                >
-                  ✏️
-                </button>
-                <button
-                  onClick={() => handleDeleteMateriale(materiale.id)}
-                  style={styles.deleteButton}
-                  className="deleteButton"
-                  title="Elimina materiale"
-                >
-                  🗑️
-                </button>
-              </div>
-            </div>
-
-            <div style={styles.ranchPrezziSection}>
-              <div style={styles.ranchPrezziHeader}>
-                <h4 style={styles.ranchPrezziTitle}>Prezzi Fornitori</h4>
-                <button
-                  onClick={() => handleAddPrezzo(materiale)}
-                  style={styles.smallButton}
-                >
-                  + Aggiungi Prezzo
-                </button>
-              </div>
-
-              {materiale.prezzi_venditori && materiale.prezzi_venditori.length > 0 ? (
-                <div style={styles.ranchPrezziList}>
-                  {materiale.prezzi_venditori.map((prezzo) => {
-                    const isMigliore = parseFloat(prezzo.prezzo) === materiale.prezzo_migliore;
-                    
-                    return (
-                      <div
-                        key={prezzo.id}
-                        style={{
-                          ...styles.ranchPrezzoItem,
-                          ...(isMigliore ? styles.ranchPrezzoMigliore : {})
-                        }}
-                      >
-                        <div style={styles.ranchPrezzoInfo}>
-                          <div style={styles.ranchPrezzoVenditore}>
-                            {prezzo.nome_venditore}
-                            {isMigliore && (
-                              <span style={styles.ranchBadgeMigliore}>🏆 Migliore</span>
-                            )}
-                          </div>
-                          <div style={styles.ranchPrezzoAmount}>
-                            €{parseFloat(prezzo.prezzo).toFixed(2)}/{materiale.unita_misura}
-                          </div>
-                          {prezzo.note && (
-                            <div style={styles.ranchPrezzoNote}>{prezzo.note}</div>
-                          )}
-                          <div style={styles.ranchPrezzoData}>
-                            Aggiornato: {new Date(prezzo.data_aggiornamento).toLocaleDateString('it-IT')}
-                          </div>
-                        </div>
-                        <div style={styles.ranchPrezzoActions}>
-                          <button
-                            onClick={() => handleEditPrezzo(materiale, prezzo)}
-                            style={styles.editButton}
-                            className="editButton"
-                            title="Modifica prezzo"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDeletePrezzo(prezzo.id)}
-                            style={styles.deleteButton}
-                            className="deleteButton"
-                            title="Elimina prezzo"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+        {materiali.map((materiale) => {
+          const isExpanded = expandedCards[materiale.id];
+          const hasPrezzi = materiale.prezzi_venditori && materiale.prezzi_venditori.length > 0;
+          
+          return (
+            <div
+              key={materiale.id}
+              style={{
+                ...styles.ranchCardCompact,
+                ...(isExpanded ? styles.ranchCardExpanded : {})
+              }}
+              onClick={() => toggleCard(materiale.id)}
+            >
+              {/* Vista Compatta */}
+              <div style={styles.ranchCardCompactHeader}>
+                <div style={styles.ranchCardCompactInfo}>
+                  <h3 style={styles.ranchCardCompactTitle}>
+                    {materiale.nome}
+                    <span style={styles.ranchCardCompactUnit}>({materiale.unita_misura})</span>
+                  </h3>
+                  {hasPrezzi && materiale.prezzo_migliore && (
+                    <div style={styles.ranchCardCompactPrice}>
+                      Miglior prezzo: <strong>€{materiale.prezzo_migliore.toFixed(2)}/{materiale.unita_misura}</strong>
+                      <span style={styles.ranchCardPrezziCount}>
+                        {materiale.prezzi_venditori.length} fornitore{materiale.prezzi_venditori.length !== 1 ? 'i' : ''}
+                      </span>
+                    </div>
+                  )}
+                  {!hasPrezzi && (
+                    <div style={styles.ranchCardNoPriceCompact}>
+                      Nessun prezzo disponibile
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div style={styles.ranchNoPrezzi}>
-                  Nessun prezzo disponibile. Aggiungi i prezzi dei fornitori per confrontarli.
+                
+                <div style={styles.ranchCardCompactActions}>
+                  <button
+                    onClick={(e) => handleEditMateriale(materiale, e)}
+                    style={styles.editButton}
+                    className="editButton"
+                    title="Modifica materiale"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    onClick={(e) => handleDeleteMateriale(materiale.id, e)}
+                    style={styles.deleteButton}
+                    className="deleteButton"
+                    title="Elimina materiale"
+                  >
+                    🗑️
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleCard(materiale.id); }}
+                    style={styles.expandButton}
+                    title={isExpanded ? "Comprimi" : "Espandi"}
+                  >
+                    {isExpanded ? '▲' : '▼'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Vista Espansa */}
+              {isExpanded && (
+                <div style={styles.ranchCardExpandedContent}>
+                  {materiale.note && (
+                    <p style={styles.ranchCardNote}>{materiale.note}</p>
+                  )}
+                  
+                  <div style={styles.ranchPrezziSection}>
+                    <div style={styles.ranchPrezziHeader}>
+                      <h4 style={styles.ranchPrezziTitle}>Prezzi Fornitori</h4>
+                      <button
+                        onClick={(e) => handleAddPrezzo(materiale, e)}
+                        style={styles.smallButton}
+                      >
+                        + Aggiungi Prezzo
+                      </button>
+                    </div>
+
+                    {hasPrezzi ? (
+                      <div style={styles.ranchPrezziList}>
+                        {materiale.prezzi_venditori.map((prezzo) => {
+                          const isMigliore = parseFloat(prezzo.prezzo) === materiale.prezzo_migliore;
+                          
+                          return (
+                            <div
+                              key={prezzo.id}
+                              style={{
+                                ...styles.ranchPrezzoItem,
+                                ...(isMigliore ? styles.ranchPrezzoMigliore : {})
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div style={styles.ranchPrezzoInfo}>
+                                <div style={styles.ranchPrezzoVenditore}>
+                                  {prezzo.nome_venditore}
+                                  {isMigliore && (
+                                    <span style={styles.ranchBadgeMigliore}>🏆 Migliore</span>
+                                  )}
+                                </div>
+                                <div style={styles.ranchPrezzoAmount}>
+                                  €{parseFloat(prezzo.prezzo).toFixed(2)}/{materiale.unita_misura}
+                                </div>
+                                {prezzo.note && (
+                                  <div style={styles.ranchPrezzoNote}>{prezzo.note}</div>
+                                )}
+                                <div style={styles.ranchPrezzoData}>
+                                  Aggiornato: {new Date(prezzo.data_aggiornamento).toLocaleDateString('it-IT')}
+                                </div>
+                              </div>
+                              <div style={styles.ranchPrezzoActions}>
+                                <button
+                                  onClick={(e) => handleEditPrezzo(materiale, prezzo, e)}
+                                  style={styles.editButton}
+                                  className="editButton"
+                                  title="Modifica prezzo"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  onClick={(e) => handleDeletePrezzo(prezzo.id, e)}
+                                  style={styles.deleteButton}
+                                  className="deleteButton"
+                                  title="Elimina prezzo"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div style={styles.ranchNoPrezzi}>
+                        Nessun prezzo disponibile. Aggiungi i prezzi dei fornitori per confrontarli.
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {materiali.length === 0 && (
@@ -2003,8 +2139,87 @@ const styles = {
   ranchContainer: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '24px',
+    gap: '16px',
   },
+  
+  // Card Compatta (default)
+  ranchCardCompact: {
+    background: 'white',
+    borderRadius: '12px',
+    padding: '20px 24px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    cursor: 'pointer',
+    border: '2px solid transparent',
+  },
+  ranchCardExpanded: {
+    padding: '24px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+    border: '2px solid #667eea',
+  },
+  ranchCardCompactHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  ranchCardCompactInfo: {
+    flex: 1,
+  },
+  ranchCardCompactTitle: {
+    fontSize: '18px',
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: '8px',
+  },
+  ranchCardCompactUnit: {
+    fontSize: '14px',
+    color: '#666',
+    marginLeft: '8px',
+    fontWeight: '500',
+  },
+  ranchCardCompactPrice: {
+    fontSize: '15px',
+    color: '#28a745',
+    fontWeight: '500',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  ranchCardPrezziCount: {
+    fontSize: '13px',
+    color: '#999',
+    fontWeight: '400',
+  },
+  ranchCardNoPriceCompact: {
+    fontSize: '14px',
+    color: '#999',
+    fontStyle: 'italic',
+  },
+  ranchCardCompactActions: {
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'center',
+  },
+  expandButton: {
+    background: '#f0f2f5',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '10px 14px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#667eea',
+    transition: 'all 0.2s',
+  },
+  
+  // Contenuto Espanso
+  ranchCardExpandedContent: {
+    marginTop: '20px',
+    paddingTop: '20px',
+    borderTop: '2px solid #f0f2f5',
+  },
+  
+  // Vecchi stili mantenuti per retrocompatibilità
   ranchCard: {
     background: 'white',
     borderRadius: '16px',
@@ -2034,7 +2249,7 @@ const styles = {
   ranchCardNote: {
     fontSize: '13px',
     color: '#999',
-    marginTop: '4px',
+    marginTop: '12px',
     fontStyle: 'italic',
   },
   ranchCardActions: {
@@ -2134,6 +2349,59 @@ const styles = {
     color: '#666',
     marginLeft: '8px',
     fontSize: '14px',
+  },
+  
+  // Costo Produzione Styles
+  costoProduzione: {
+    background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+    borderRadius: '12px',
+    padding: '16px 20px',
+    marginTop: '16px',
+    marginBottom: '16px',
+    border: '2px solid #dee2e6',
+  },
+  costoRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '8px',
+  },
+  costoLabel: {
+    fontSize: '14px',
+    color: '#666',
+    fontWeight: '500',
+  },
+  costoValue: {
+    fontSize: '16px',
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  margineBar: {
+    marginTop: '12px',
+    height: '8px',
+    background: '#e9ecef',
+    borderRadius: '4px',
+    overflow: 'hidden',
+  },
+  margineBarFill: {
+    height: '100%',
+    transition: 'width 0.3s ease',
+    borderRadius: '4px',
+  },
+  costoWarning: {
+    background: '#fff3cd',
+    border: '2px solid #ffc107',
+    borderRadius: '8px',
+    padding: '12px 16px',
+    fontSize: '13px',
+    color: '#856404',
+    marginTop: '12px',
+  },
+  ingredienteWarning: {
+    fontSize: '12px',
+    color: '#dc3545',
+    marginLeft: '8px',
+    fontWeight: '600',
   },
 };
 
