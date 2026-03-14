@@ -165,8 +165,8 @@ app.get('/api/piatti', requireAuth, async (req, res) => {
                     [piatto.id]
                 );
                 
-                // Calcola costo produzione
-                let costoProduzione = 0;
+                // Calcola costo produzione TOTALE
+                let costoTotale = 0;
                 
                 for (const ing of ingredienti.rows) {
                     if (ing.materiale_id) {
@@ -195,19 +195,28 @@ app.get('/api/piatti', requireAuth, async (req, res) => {
                             }
                             
                             const costoIngrediente = quantitaNumerica * fattoreConversione * parseFloat(prezzoMigliore.rows[0].prezzo_min);
-                            costoProduzione += costoIngrediente;
+                            costoTotale += costoIngrediente;
                         }
                     }
                 }
                 
+                // Calcola costo PER PORZIONE
+                const porzioni = piatto.porzioni || 1;
+                const costoPerPorzione = costoTotale / porzioni;
+                
+                // Calcola margine basato sul costo per porzione
+                const margine = costoPerPorzione > 0 ? parseFloat(piatto.prezzo) - costoPerPorzione : null;
+                const percentualeMargine = costoPerPorzione > 0 
+                    ? ((parseFloat(piatto.prezzo) - costoPerPorzione) / parseFloat(piatto.prezzo) * 100)
+                    : null;
+                
                 return {
                     ...piatto,
                     ingredienti: ingredienti.rows,
-                    costo_produzione: costoProduzione > 0 ? costoProduzione : null,
-                    margine: costoProduzione > 0 ? parseFloat(piatto.prezzo) - costoProduzione : null,
-                    percentuale_margine: costoProduzione > 0 
-                        ? ((parseFloat(piatto.prezzo) - costoProduzione) / parseFloat(piatto.prezzo) * 100)
-                        : null
+                    costo_totale_ricetta: costoTotale > 0 ? costoTotale : null,
+                    costo_per_porzione: costoPerPorzione > 0 ? costoPerPorzione : null,
+                    margine: margine,
+                    percentuale_margine: percentualeMargine
                 };
             })
         );
@@ -225,12 +234,12 @@ app.post('/api/piatti', requireDirettore, async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        const { nome, prezzo, ingredienti } = req.body;
+        const { nome, prezzo, ingredienti, porzioni } = req.body;
 
-        // Inserisci piatto
+        // Inserisci piatto con porzioni
         const piattoResult = await client.query(
-            'INSERT INTO piatti (nome, prezzo) VALUES ($1, $2) RETURNING *',
-            [nome, prezzo]
+            'INSERT INTO piatti (nome, prezzo, porzioni) VALUES ($1, $2, $3) RETURNING *',
+            [nome, prezzo, porzioni || 1]
         );
 
         const piatto = piattoResult.rows[0];
@@ -259,7 +268,8 @@ app.post('/api/piatti', requireDirettore, async (req, res) => {
         res.json({
             ...piatto,
             ingredienti: ingredientiResult.rows,
-            costo_produzione: null,
+            costo_totale_ricetta: null,
+            costo_per_porzione: null,
             margine: null
         });
     } catch (error) {
@@ -278,12 +288,12 @@ app.put('/api/piatti/:id', requireDirettore, async (req, res) => {
         await client.query('BEGIN');
 
         const { id } = req.params;
-        const { nome, prezzo, ingredienti } = req.body;
+        const { nome, prezzo, ingredienti, porzioni_prodotte } = req.body;
 
-        // Aggiorna piatto
+        // Aggiorna piatto con porzioni_prodotte
         await client.query(
-            'UPDATE piatti SET nome = $1, prezzo = $2 WHERE id = $3',
-            [nome, prezzo, id]
+            'UPDATE piatti SET nome = $1, prezzo = $2, porzioni_prodotte = $3 WHERE id = $4',
+            [nome, prezzo, porzioni_prodotte || 1, id]
         );
 
         // Elimina vecchi ingredienti
