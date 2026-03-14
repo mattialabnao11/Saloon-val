@@ -106,7 +106,7 @@ function LoginPage({ onLogin }) {
   return (
     <div style={styles.loginContainer}>
       <div style={styles.loginBox}>
-        <h1 style={styles.loginTitle}>Gestione Ristorante</h1>
+        <h1 style={styles.loginTitle}>Gestione Saloon</h1>
         <p style={styles.loginSubtitle}>Accedi al sistema</p>
 
         {error && <div style={styles.errorBox}>{error}</div>}
@@ -160,7 +160,7 @@ function Sidebar({ user, currentPage, onNavigate, onLogout }) {
   return (
     <div style={styles.sidebar}>
       <div style={styles.sidebarHeader}>
-        <h2 style={styles.sidebarTitle}>🍴 Ristorante</h2>
+        <h2 style={styles.sidebarTitle}>🍴 Saloon Valentine</h2>
         <div style={styles.userInfo}>
           <span style={styles.userName}>{user.nome}</span>
           <span style={styles.userRole}>{user.ruolo}</span>
@@ -209,6 +209,7 @@ function MainContent({ currentPage, user }) {
 function ListinoPage() {
   const [piatti, setPiatti] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expandedCards, setExpandedCards] = useState({});
 
   useEffect(() => {
     loadPiatti();
@@ -225,6 +226,13 @@ function ListinoPage() {
     }
   };
 
+  const toggleCard = (id) => {
+    setExpandedCards(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
   if (loading) return <div style={styles.loading}>Caricamento...</div>;
 
   return (
@@ -236,88 +244,117 @@ function ListinoPage() {
           const costoConosciuto = piatto.costo_per_porzione !== null && piatto.costo_per_porzione > 0;
           const marginePercentuale = piatto.percentuale_margine;
           const porzioni = piatto.porzioni || 1;
+          const isExpanded = expandedCards[piatto.id];
           
           return (
-            <div key={piatto.id} style={styles.listinoCard}>
-              <div style={styles.listinoCardHeader}>
-                <h3 style={styles.listinoCardTitle}>{piatto.nome}</h3>
-                <span style={styles.listinoCardPrice}>€{parseFloat(piatto.prezzo).toFixed(2)}</span>
-              </div>
-              
-              {/* Info Porzioni */}
-              {porzioni > 1 && (
-                <div style={styles.porzioniInfo}>
-                  📦 Ricetta produce <strong>{porzioni} porzioni</strong>
+            <div
+              key={piatto.id}
+              style={{
+                ...styles.listinoCardCompact,
+                ...(isExpanded ? styles.listinoCardExpanded : {})
+              }}
+              onClick={() => toggleCard(piatto.id)}
+            >
+              {/* Vista Compatta */}
+              <div style={styles.listinoCardCompactHeader}>
+                <div style={styles.listinoCardCompactInfo}>
+                  <h3 style={styles.listinoCardCompactTitle}>{piatto.nome}</h3>
+                  <div style={styles.listinoCardCompactDetails}>
+                    <span style={styles.listinoCardCompactPrice}>
+                      €{parseFloat(piatto.prezzo).toFixed(2)}
+                    </span>
+                    {costoConosciuto && (
+                      <span style={{
+                        ...styles.listinoCardCompactMargine,
+                        color: marginePercentuale > 50 ? '#28a745' : marginePercentuale > 30 ? '#ffc107' : '#dc3545'
+                      }}>
+                        Margine: {marginePercentuale.toFixed(0)}%
+                      </span>
+                    )}
+                  </div>
                 </div>
-              )}
-              
-              {/* Costo Produzione */}
-              {costoConosciuto && (
-                <div style={styles.costoProduzione}>
-                  {porzioni > 1 && piatto.costo_totale_ricetta && (
-                    <div style={styles.porzioniInfo}>
-                      <div style={styles.porzioniLabel}>
-                        Ricetta completa fa <strong>{porzioni} porzioni</strong>
+                
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleCard(piatto.id); }}
+                  style={styles.listinoExpandButton}
+                  title={isExpanded ? "Comprimi" : "Espandi"}
+                >
+                  {isExpanded ? '▲' : '▼'}
+                </button>
+              </div>
+
+              {/* Vista Espansa */}
+              {isExpanded && (
+                <div style={styles.listinoCardExpandedContent} onClick={(e) => e.stopPropagation()}>
+                  {/* Costo Produzione */}
+                  {costoConosciuto && (
+                    <div style={styles.costoProduzione}>
+                      {porzioni > 1 && piatto.costo_totale_ricetta && (
+                        <div style={styles.porzioniInfo}>
+                          <div style={styles.porzioniLabel}>
+                            Ricetta completa fa <strong>{porzioni} porzioni</strong>
+                          </div>
+                          <div style={styles.costoRow}>
+                            <span style={styles.costoLabel}>Costo totale ricetta:</span>
+                            <span style={styles.costoValue}>
+                              €{piatto.costo_totale_ricetta.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      <div style={styles.costoRow}>
+                        <span style={styles.costoLabel}>Costo per porzione:</span>
+                        <span style={styles.costoValue}>
+                          €{piatto.costo_per_porzione.toFixed(2)}
+                        </span>
                       </div>
                       <div style={styles.costoRow}>
-                        <span style={styles.costoLabel}>Costo totale ricetta:</span>
-                        <span style={styles.costoValue}>
-                          €{piatto.costo_totale_ricetta.toFixed(2)}
+                        <span style={styles.costoLabel}>Margine:</span>
+                        <span style={{
+                          ...styles.costoValue,
+                          color: piatto.margine > 0 ? '#28a745' : '#dc3545'
+                        }}>
+                          €{piatto.margine.toFixed(2)} ({marginePercentuale.toFixed(1)}%)
                         </span>
+                      </div>
+                      <div style={styles.margineBar}>
+                        <div style={{
+                          ...styles.margineBarFill,
+                          width: `${Math.min(marginePercentuale, 100)}%`,
+                          background: marginePercentuale > 50 
+                            ? 'linear-gradient(90deg, #28a745 0%, #20c997 100%)'
+                            : marginePercentuale > 30
+                            ? 'linear-gradient(90deg, #ffc107 0%, #fd7e14 100%)'
+                            : 'linear-gradient(90deg, #dc3545 0%, #e74c3c 100%)'
+                        }}></div>
                       </div>
                     </div>
                   )}
-                  <div style={styles.costoRow}>
-                    <span style={styles.costoLabel}>Costo per porzione:</span>
-                    <span style={styles.costoValue}>
-                      €{piatto.costo_per_porzione.toFixed(2)}
-                    </span>
-                  </div>
-                  <div style={styles.costoRow}>
-                    <span style={styles.costoLabel}>Margine:</span>
-                    <span style={{
-                      ...styles.costoValue,
-                      color: piatto.margine > 0 ? '#28a745' : '#dc3545'
-                    }}>
-                      €{piatto.margine.toFixed(2)} ({marginePercentuale.toFixed(1)}%)
-                    </span>
-                  </div>
-                  <div style={styles.margineBar}>
-                    <div style={{
-                      ...styles.margineBarFill,
-                      width: `${Math.min(marginePercentuale, 100)}%`,
-                      background: marginePercentuale > 50 
-                        ? 'linear-gradient(90deg, #28a745 0%, #20c997 100%)'
-                        : marginePercentuale > 30
-                        ? 'linear-gradient(90deg, #ffc107 0%, #fd7e14 100%)'
-                        : 'linear-gradient(90deg, #dc3545 0%, #e74c3c 100%)'
-                    }}></div>
-                  </div>
-                </div>
-              )}
-              
-              {/* Ingredienti */}
-              {piatto.ingredienti && piatto.ingredienti.length > 0 && (
-                <div style={styles.ingredientiSection}>
-                  <p style={styles.ingredientiLabel}>
-                    Ingredienti {porzioni > 1 ? `(per ${porzioni} porzioni)` : ''}:
-                  </p>
-                  <ul style={styles.ingredientiList}>
-                    {piatto.ingredienti.map((ing, idx) => (
-                      <li key={idx} style={styles.ingredienteItem}>
-                        {ing.nome_ingrediente} - {ing.quantita}
-                        {!ing.materiale_id && (
-                          <span style={styles.ingredienteWarning}>⚠️ Non collegato</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
-              {!costoConosciuto && piatto.ingredienti && piatto.ingredienti.length > 0 && (
-                <div style={styles.costoWarning}>
-                  ⚠️ Collega gli ingredienti ai materiali in Listini Ranch per vedere il costo
+                  
+                  {/* Ingredienti */}
+                  {piatto.ingredienti && piatto.ingredienti.length > 0 && (
+                    <div style={styles.ingredientiSection}>
+                      <p style={styles.ingredientiLabel}>
+                        Ingredienti {porzioni > 1 ? `(per ${porzioni} porzioni)` : ''}:
+                      </p>
+                      <ul style={styles.ingredientiList}>
+                        {piatto.ingredienti.map((ing, idx) => (
+                          <li key={idx} style={styles.ingredienteItem}>
+                            {ing.nome_ingrediente} - {ing.quantita}
+                            {!ing.materiale_id && (
+                              <span style={styles.ingredienteWarning}>⚠️ Non collegato</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {!costoConosciuto && piatto.ingredienti && piatto.ingredienti.length > 0 && (
+                    <div style={styles.costoWarning}>
+                      ⚠️ Collega gli ingredienti ai materiali in Listini Ranch per vedere il costo
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2039,6 +2076,67 @@ const styles = {
     boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
     transition: 'transform 0.2s, box-shadow 0.2s',
   },
+  
+  // Listino Card Compatta (collassabile)
+  listinoCardCompact: {
+    background: 'white',
+    borderRadius: '12px',
+    padding: '20px 24px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    cursor: 'pointer',
+    border: '2px solid transparent',
+  },
+  listinoCardExpanded: {
+    padding: '24px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+    border: '2px solid #667eea',
+  },
+  listinoCardCompactHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  listinoCardCompactInfo: {
+    flex: 1,
+  },
+  listinoCardCompactTitle: {
+    fontSize: '18px',
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: '8px',
+  },
+  listinoCardCompactDetails: {
+    display: 'flex',
+    gap: '16px',
+    alignItems: 'center',
+  },
+  listinoCardCompactPrice: {
+    fontSize: '20px',
+    fontWeight: '700',
+    color: '#667eea',
+  },
+  listinoCardCompactMargine: {
+    fontSize: '14px',
+    fontWeight: '600',
+  },
+  listinoExpandButton: {
+    background: '#f0f2f5',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '10px 14px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#667eea',
+    transition: 'all 0.2s',
+  },
+  listinoCardExpandedContent: {
+    marginTop: '20px',
+    paddingTop: '20px',
+    borderTop: '2px solid #f0f2f5',
+  },
+  
   listinoCardHeader: {
     display: 'flex',
     justifyContent: 'space-between',
