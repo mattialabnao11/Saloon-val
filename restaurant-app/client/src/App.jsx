@@ -245,9 +245,9 @@ function ListinoPage() {
               </div>
               
               {/* Info Porzioni */}
-              {porzioniProdotte > 1 && (
+              {porzioni > 1 && (
                 <div style={styles.porzioniInfo}>
-                  📦 Ricetta produce <strong>{porzioniProdotte} porzioni</strong>
+                  📦 Ricetta produce <strong>{porzioni} porzioni</strong>
                 </div>
               )}
               
@@ -300,7 +300,7 @@ function ListinoPage() {
               {piatto.ingredienti && piatto.ingredienti.length > 0 && (
                 <div style={styles.ingredientiSection}>
                   <p style={styles.ingredientiLabel}>
-                    Ingredienti {porzioniProdotte > 1 ? `(per ${porzioniProdotte} porzioni)` : ''}:
+                    Ingredienti {porzioni > 1 ? `(per ${porzioni} porzioni)` : ''}:
                   </p>
                   <ul style={styles.ingredientiList}>
                     {piatto.ingredienti.map((ing, idx) => (
