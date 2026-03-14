@@ -288,12 +288,12 @@ app.put('/api/piatti/:id', requireDirettore, async (req, res) => {
         await client.query('BEGIN');
 
         const { id } = req.params;
-        const { nome, prezzo, ingredienti, porzioni_prodotte } = req.body;
+        const { nome, prezzo, ingredienti, porzioni } = req.body;
 
         // Aggiorna piatto con porzioni_prodotte
         await client.query(
-            'UPDATE piatti SET nome = $1, prezzo = $2, porzioni_prodotte = $3 WHERE id = $4',
-            [nome, prezzo, porzioni_prodotte || 1, id]
+            'UPDATE piatti SET nome = $1, prezzo = $2, porzioni = $3 WHERE id = $4',
+            [nome, prezzo, porzioni || 1, id]
         );
 
         // Elimina vecchi ingredienti
