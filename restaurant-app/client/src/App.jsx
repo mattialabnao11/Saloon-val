@@ -233,8 +233,9 @@ function ListinoPage() {
 
       <div style={styles.cardGrid}>
         {piatti.map((piatto) => {
-          const costoConosciuto = piatto.costo_produzione !== null && piatto.costo_produzione > 0;
+          const costoConosciuto = piatto.costo_per_porzione !== null && piatto.costo_per_porzione > 0;
           const marginePercentuale = piatto.percentuale_margine;
+          const porzioni = piatto.porzioni || 1;
           
           return (
             <div key={piatto.id} style={styles.listinoCard}>
@@ -243,13 +244,33 @@ function ListinoPage() {
                 <span style={styles.listinoCardPrice}>€{parseFloat(piatto.prezzo).toFixed(2)}</span>
               </div>
               
+              {/* Info Porzioni */}
+              {porzioniProdotte > 1 && (
+                <div style={styles.porzioniInfo}>
+                  📦 Ricetta produce <strong>{porzioniProdotte} porzioni</strong>
+                </div>
+              )}
+              
               {/* Costo Produzione */}
               {costoConosciuto && (
                 <div style={styles.costoProduzione}>
+                  {porzioni > 1 && piatto.costo_totale_ricetta && (
+                    <div style={styles.porzioniInfo}>
+                      <div style={styles.porzioniLabel}>
+                        Ricetta completa fa <strong>{porzioni} porzioni</strong>
+                      </div>
+                      <div style={styles.costoRow}>
+                        <span style={styles.costoLabel}>Costo totale ricetta:</span>
+                        <span style={styles.costoValue}>
+                          €{piatto.costo_totale_ricetta.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   <div style={styles.costoRow}>
-                    <span style={styles.costoLabel}>Costo produzione:</span>
+                    <span style={styles.costoLabel}>Costo per porzione:</span>
                     <span style={styles.costoValue}>
-                      €{piatto.costo_produzione.toFixed(2)}
+                      €{piatto.costo_per_porzione.toFixed(2)}
                     </span>
                   </div>
                   <div style={styles.costoRow}>
@@ -278,7 +299,9 @@ function ListinoPage() {
               {/* Ingredienti */}
               {piatto.ingredienti && piatto.ingredienti.length > 0 && (
                 <div style={styles.ingredientiSection}>
-                  <p style={styles.ingredientiLabel}>Ingredienti necessari:</p>
+                  <p style={styles.ingredientiLabel}>
+                    Ingredienti {porzioniProdotte > 1 ? `(per ${porzioniProdotte} porzioni)` : ''}:
+                  </p>
                   <ul style={styles.ingredientiList}>
                     {piatto.ingredienti.map((ing, idx) => (
                       <li key={idx} style={styles.ingredienteItem}>
@@ -419,6 +442,7 @@ function GestionePiattiPage() {
 function PiattoForm({ piatto, onClose }) {
   const [nome, setNome] = useState(piatto?.nome || '');
   const [prezzo, setPrezzo] = useState(piatto?.prezzo || '');
+  const [porzioni, setPorzioni] = useState(piatto?.porzioni || 1);
   const [ingredienti, setIngredienti] = useState(piatto?.ingredienti || []);
   const [materiali, setMateriali] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -469,6 +493,7 @@ function PiattoForm({ piatto, onClose }) {
       const body = {
         nome,
         prezzo: parseFloat(prezzo),
+        porzioni: parseInt(porzioni),
         ingredienti: ingredienti.filter(
           (ing) => ing.materiale_id && ing.quantita
         ),
@@ -514,20 +539,40 @@ function PiattoForm({ piatto, onClose }) {
               value={nome}
               onChange={(e) => setNome(e.target.value)}
               style={styles.input}
+              placeholder="es. Spaghetti Carbonara"
               required
             />
           </div>
 
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Prezzo (€) *</label>
-            <input
-              type="number"
-              step="0.01"
-              value={prezzo}
-              onChange={(e) => setPrezzo(e.target.value)}
-              style={styles.input}
-              required
-            />
+          <div style={styles.formRow}>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Prezzo Vendita (€) *</label>
+              <input
+                type="number"
+                step="0.01"
+                value={prezzo}
+                onChange={(e) => setPrezzo(e.target.value)}
+                style={styles.input}
+                placeholder="12.50"
+                required
+              />
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Porzioni Prodotte *</label>
+              <input
+                type="number"
+                min="1"
+                value={porzioni}
+                onChange={(e) => setPorzioni(e.target.value)}
+                style={styles.input}
+                placeholder="1"
+                required
+              />
+              <small style={styles.helpText}>
+                Quante porzioni produce questa ricetta?
+              </small>
+            </div>
           </div>
 
           <div style={styles.formGroup}>
@@ -1823,6 +1868,12 @@ const styles = {
   formGroup: {
     marginBottom: '20px',
   },
+  formRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '16px',
+    marginBottom: '20px',
+  },
   label: {
     display: 'block',
     marginBottom: '8px',
@@ -1835,6 +1886,34 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: '12px',
+  },
+  labelHelper: {
+    fontSize: '12px',
+    fontWeight: '400',
+    color: '#999',
+    marginLeft: '8px',
+  },
+  helpText: {
+    display: 'block',
+    marginTop: '6px',
+    fontSize: '12px',
+    color: '#999',
+    fontStyle: 'italic',
+  },
+  porzioniInfo: {
+    background: '#e3f2fd',
+    border: '2px solid #2196f3',
+    borderRadius: '8px',
+    padding: '12px 16px',
+    fontSize: '13px',
+    color: '#1565c0',
+    marginBottom: '16px',
+  },
+  porzioniLabel: {
+    fontSize: '13px',
+    color: '#666',
+    marginBottom: '8px',
+    fontWeight: '500',
   },
   input: {
     width: '100%',
@@ -1975,6 +2054,16 @@ const styles = {
     fontSize: '24px',
     fontWeight: '700',
     color: '#667eea',
+  },
+  porzioniInfo: {
+    background: '#e3f2fd',
+    border: '2px solid #2196f3',
+    borderRadius: '8px',
+    padding: '10px 14px',
+    fontSize: '13px',
+    color: '#1565c0',
+    marginTop: '12px',
+    marginBottom: '12px',
   },
   ingredientiSection: {
     marginTop: '16px',
