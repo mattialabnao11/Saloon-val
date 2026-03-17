@@ -290,7 +290,7 @@ app.put('/api/piatti/:id', requireDirettore, async (req, res) => {
         const { id } = req.params;
         const { nome, prezzo, ingredienti, porzioni } = req.body;
 
-        // Aggiorna piatto con porzioni_prodotte
+        // Aggiorna piatto con porzioni
         await client.query(
             'UPDATE piatti SET nome = $1, prezzo = $2, porzioni = $3 WHERE id = $4',
             [nome, prezzo, porzioni || 1, id]
@@ -499,7 +499,7 @@ app.post('/api/fatture', requireAuth, async (req, res) => {
 // ============ LISTINI RANCH ROUTES ============
 
 // Get tutti i materiali con prezzi venditori
-app.get('/api/materiali', requireDirettore, async (req, res) => {
+app.get('/api/materiali', requireAuth, async (req, res) => {
     try {
         const materiali = await pool.query('SELECT * FROM materiali ORDER BY nome');
         
