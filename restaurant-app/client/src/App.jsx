@@ -152,16 +152,16 @@ function Sidebar({ user, currentPage, onNavigate, onLogout }) {
   const menuItems = [
     { id: 'listino', label: 'Listino', icon: '📋', allowed: ['Direttore', 'Dipendente'] },
     { id: 'fatture', label: 'Fatture', icon: '🧾', allowed: ['Direttore', 'Dipendente'] },
+    { id: 'acquisti', label: 'Acquisti', icon: '🛒', allowed: ['Direttore', 'Dipendente'] },
     { id: 'piatti', label: 'Gestione Piatti', icon: '🍝', allowed: ['Direttore'] },
     { id: 'dipendenti', label: 'Gestione Dipendenti', icon: '👥', allowed: ['Direttore'] },
     { id: 'listini-ranch', label: 'Listini Ranch', icon: '🏪', allowed: ['Direttore'] },
-    { id: 'acquisti', label: 'Acquisti', icon: '🛒', allowed: ['Direttore', 'Dipendente'] },
   ];
 
   return (
     <div style={styles.sidebar}>
       <div style={styles.sidebarHeader}>
-        <h2 style={styles.sidebarTitle}>🍴 Saloon Valentine</h2>
+        <h2 style={styles.sidebarTitle}>🍴 Saloon</h2>
         <div style={styles.userInfo}>
           <span style={styles.userName}>{user.nome}</span>
           <span style={styles.userRole}>{user.ruolo}</span>
