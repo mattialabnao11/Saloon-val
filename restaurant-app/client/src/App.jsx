@@ -155,6 +155,7 @@ function Sidebar({ user, currentPage, onNavigate, onLogout }) {
     { id: 'piatti', label: 'Gestione Piatti', icon: '🍝', allowed: ['Direttore'] },
     { id: 'dipendenti', label: 'Gestione Dipendenti', icon: '👥', allowed: ['Direttore'] },
     { id: 'listini-ranch', label: 'Listini Ranch', icon: '🏪', allowed: ['Direttore'] },
+    { id: 'acquisti', label: 'Acquisti', icon: '🛒', allowed: ['Direttore'] },
   ];
 
   return (
@@ -201,6 +202,7 @@ function MainContent({ currentPage, user }) {
       {currentPage === 'piatti' && <GestionePiattiPage />}
       {currentPage === 'dipendenti' && <GestioneDipendentiPage />}
       {currentPage === 'listini-ranch' && <ListiniRanchPage />}
+      {currentPage === 'acquisti' && <AcquistiPage />}
     </div>
   );
 }
@@ -1655,6 +1657,311 @@ function PrezzoVenditoreForm({ materiale, prezzo, onClose }) {
   );
 }
 
+// ========== ACQUISTI PAGE ==========
+function AcquistiPage() {
+  const [materiali, setMateriali] = useState([]);
+  const [righeAcquisto, setRigheAcquisto] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  useEffect(() => {
+    loadMateriali();
+  }, []);
+
+  const loadMateriali = async () => {
+    try {
+      const data = await fetchAPI('/api/materiali');
+      setMateriali(data);
+    } catch (error) {
+      console.error('Errore caricamento materiali:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const aggiungiRiga = (materiale, fornitore, quantita, prezzoCustom) => {
+    const nuovaRiga = {
+      id: Date.now(),
+      materiale,
+      fornitore,
+      quantita: parseFloat(quantita),
+      prezzoUnitario: fornitore === 'Altro' ? parseFloat(prezzoCustom) : parseFloat(fornitore.prezzo),
+    };
+
+    setRigheAcquisto([...righeAcquisto, nuovaRiga]);
+    setShowAddForm(false);
+  };
+
+  const rimuoviRiga = (id) => {
+    setRigheAcquisto(righeAcquisto.filter(r => r.id !== id));
+  };
+
+  const calcolaTotale = () => {
+    return righeAcquisto.reduce((acc, riga) => {
+      return acc + (riga.quantita * riga.prezzoUnitario);
+    }, 0);
+  };
+
+  const resetAcquisto = () => {
+    if (window.confirm('Vuoi svuotare l\'acquisto corrente?')) {
+      setRigheAcquisto([]);
+    }
+  };
+
+  if (loading) return <div style={styles.loading}>Caricamento...</div>;
+
+  return (
+    <div style={styles.pageContainer}>
+      <div style={styles.pageHeader}>
+        <h1 style={styles.pageTitle}>🛒 Calcolatore Acquisti</h1>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {righeAcquisto.length > 0 && (
+            <button onClick={resetAcquisto} style={styles.secondaryButton}>
+              🗑️ Svuota
+            </button>
+          )}
+          <button onClick={() => setShowAddForm(true)} style={styles.primaryButton}>
+            + Aggiungi Materiale
+          </button>
+        </div>
+      </div>
+
+      {showAddForm && (
+        <AggiungiMaterialeForm
+          materiali={materiali}
+          onAdd={aggiungiRiga}
+          onClose={() => setShowAddForm(false)}
+        />
+      )}
+
+      {righeAcquisto.length > 0 ? (
+        <div style={styles.acquistoContainer}>
+          <div style={styles.acquistoTable}>
+            <div style={styles.acquistoTableHeader}>
+              <div style={styles.acquistoTableCell}>Materiale</div>
+              <div style={styles.acquistoTableCell}>Fornitore</div>
+              <div style={styles.acquistoTableCell}>Quantità</div>
+              <div style={styles.acquistoTableCell}>Prezzo/unità</div>
+              <div style={styles.acquistoTableCell}>Totale</div>
+              <div style={styles.acquistoTableCell}>Azioni</div>
+            </div>
+
+            {righeAcquisto.map((riga) => (
+              <div key={riga.id} style={styles.acquistoTableRow}>
+                <div style={styles.acquistoTableCell}>
+                  <strong>{riga.materiale.nome}</strong>
+                  <span style={styles.acquistoUnitaBadge}>({riga.materiale.unita_misura})</span>
+                </div>
+                <div style={styles.acquistoTableCell}>
+                  {riga.fornitore === 'Altro' ? (
+                    <span style={styles.acquistoFornitoreAltro}>Altro</span>
+                  ) : (
+                    <span>{riga.fornitore.nome_venditore}</span>
+                  )}
+                </div>
+                <div style={styles.acquistoTableCell}>
+                  <strong>{riga.quantita}</strong> {riga.materiale.unita_misura}
+                </div>
+                <div style={styles.acquistoTableCell}>
+                  €{riga.prezzoUnitario.toFixed(2)}/{riga.materiale.unita_misura}
+                </div>
+                <div style={styles.acquistoTableCell}>
+                  <strong style={styles.acquistoPrezzoTotale}>
+                    €{(riga.quantita * riga.prezzoUnitario).toFixed(2)}
+                  </strong>
+                </div>
+                <div style={styles.acquistoTableCell}>
+                  <button
+                    onClick={() => rimuoviRiga(riga.id)}
+                    style={styles.deleteButton}
+                    className="deleteButton"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={styles.acquistoTotale}>
+            <div style={styles.acquistoTotaleLabel}>Totale da Pagare:</div>
+            <div style={styles.acquistoTotaleValue}>€{calcolaTotale().toFixed(2)}</div>
+          </div>
+        </div>
+      ) : (
+        <div style={styles.acquistoEmpty}>
+          <div style={styles.acquistoEmptyIcon}>🛒</div>
+          <h3 style={styles.acquistoEmptyTitle}>Nessun materiale nell'acquisto</h3>
+          <p style={styles.acquistoEmptyText}>
+            Clicca su "Aggiungi Materiale" per iniziare a calcolare il costo dell'ordine
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ========== AGGIUNGI MATERIALE FORM ==========
+function AggiungiMaterialeForm({ materiali, onAdd, onClose }) {
+  const [materialeSelezionato, setMaterialeSelezionato] = useState(null);
+  const [fornitoreSelezionato, setFornitoreSelezionato] = useState(null);
+  const [quantita, setQuantita] = useState('');
+  const [prezzoCustom, setPrezzoCustom] = useState('');
+
+  const handleMaterialeChange = (materialeId) => {
+    const materiale = materiali.find(m => m.id === parseInt(materialeId));
+    setMaterialeSelezionato(materiale);
+    setFornitoreSelezionato(null); // Reset fornitore quando cambi materiale
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    if (!materialeSelezionato || !quantita) {
+      alert('Seleziona materiale e quantità');
+      return;
+    }
+
+    if (!fornitoreSelezionato) {
+      alert('Seleziona un fornitore');
+      return;
+    }
+
+    if (fornitoreSelezionato === 'Altro' && !prezzoCustom) {
+      alert('Inserisci il prezzo per il fornitore "Altro"');
+      return;
+    }
+
+    onAdd(materialeSelezionato, fornitoreSelezionato, quantita, prezzoCustom);
+
+    // Reset form
+    setMaterialeSelezionato(null);
+    setFornitoreSelezionato(null);
+    setQuantita('');
+    setPrezzoCustom('');
+  };
+
+  return (
+    <div style={styles.acquistoFormContainer}>
+      <div style={styles.acquistoFormHeader}>
+        <h3 style={styles.acquistoFormTitle}>Aggiungi Materiale all'Acquisto</h3>
+        <button onClick={onClose} style={styles.closeButton} className="closeButton">
+          ✕
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} style={styles.acquistoForm}>
+        <div style={styles.formRow}>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Materiale *</label>
+            <select
+              value={materialeSelezionato?.id || ''}
+              onChange={(e) => handleMaterialeChange(e.target.value)}
+              style={styles.input}
+              required
+            >
+              <option value="">Seleziona materiale...</option>
+              {materiali.map((mat) => (
+                <option key={mat.id} value={mat.id}>
+                  {mat.nome} ({mat.unita_misura})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.label}>
+              Quantità ({materialeSelezionato?.unita_misura || '...'}) *
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={quantita}
+              onChange={(e) => setQuantita(e.target.value)}
+              style={styles.input}
+              placeholder="0"
+              required
+            />
+          </div>
+        </div>
+
+        {materialeSelezionato && (
+          <div style={styles.formGroup}>
+            <label style={styles.label}>Fornitore *</label>
+            <select
+              value={fornitoreSelezionato === 'Altro' ? 'Altro' : fornitoreSelezionato?.id || ''}
+              onChange={(e) => {
+                if (e.target.value === 'Altro') {
+                  setFornitoreSelezionato('Altro');
+                } else {
+                  const fornitore = materialeSelezionato.prezzi_venditori.find(
+                    p => p.id === parseInt(e.target.value)
+                  );
+                  setFornitoreSelezionato(fornitore);
+                }
+              }}
+              style={styles.input}
+              required
+            >
+              <option value="">Seleziona fornitore...</option>
+              {materialeSelezionato.prezzi_venditori && materialeSelezionato.prezzi_venditori.map((prezzo) => (
+                <option key={prezzo.id} value={prezzo.id}>
+                  {prezzo.nome_venditore} - €{parseFloat(prezzo.prezzo).toFixed(2)}/{materialeSelezionato.unita_misura}
+                </option>
+              ))}
+              <option value="Altro">Altro (inserisci prezzo manualmente)</option>
+            </select>
+          </div>
+        )}
+
+        {fornitoreSelezionato === 'Altro' && (
+          <div style={styles.formGroup}>
+            <label style={styles.label}>
+              Prezzo Unitario (€/{materialeSelezionato?.unita_misura}) *
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={prezzoCustom}
+              onChange={(e) => setPrezzoCustom(e.target.value)}
+              style={styles.input}
+              placeholder="0.00"
+              required
+            />
+          </div>
+        )}
+
+        {materialeSelezionato && fornitoreSelezionato && quantita && (
+          <div style={styles.acquistoPreview}>
+            <div style={styles.acquistoPreviewLabel}>Anteprima:</div>
+            <div style={styles.acquistoPreviewRow}>
+              <span>{materialeSelezionato.nome}</span>
+              <span>{quantita} {materialeSelezionato.unita_misura}</span>
+              <span>×</span>
+              <span>
+                €{(fornitoreSelezionato === 'Altro' ? parseFloat(prezzoCustom || 0) : parseFloat(fornitoreSelezionato.prezzo)).toFixed(2)}
+              </span>
+              <span>=</span>
+              <strong style={styles.acquistoPreviewTotal}>
+                €{(parseFloat(quantita) * (fornitoreSelezionato === 'Altro' ? parseFloat(prezzoCustom || 0) : parseFloat(fornitoreSelezionato.prezzo))).toFixed(2)}
+              </strong>
+            </div>
+          </div>
+        )}
+
+        <div style={styles.formActions}>
+          <button type="button" onClick={onClose} style={styles.secondaryButton}>
+            Annulla
+          </button>
+          <button type="submit" style={styles.primaryButton}>
+            Aggiungi
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 // ========== STYLES ==========
 const styles = {
   // Global
@@ -2589,6 +2896,149 @@ const styles = {
     color: '#dc3545',
     marginLeft: '8px',
     fontWeight: '600',
+  },
+  
+  // Acquisti Styles
+  acquistoContainer: {
+    background: 'white',
+    borderRadius: '16px',
+    padding: '28px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+  },
+  acquistoTable: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+  },
+  acquistoTableHeader: {
+    display: 'grid',
+    gridTemplateColumns: '2fr 1.5fr 1fr 1fr 1fr 80px',
+    gap: '16px',
+    padding: '16px 20px',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    borderRadius: '12px',
+    fontWeight: '700',
+    fontSize: '14px',
+    color: 'white',
+  },
+  acquistoTableRow: {
+    display: 'grid',
+    gridTemplateColumns: '2fr 1.5fr 1fr 1fr 1fr 80px',
+    gap: '16px',
+    padding: '16px 20px',
+    background: '#f8f9fa',
+    borderRadius: '12px',
+    alignItems: 'center',
+    transition: 'all 0.2s',
+    border: '2px solid transparent',
+  },
+  acquistoTableCell: {
+    fontSize: '14px',
+    color: '#1a1a1a',
+  },
+  acquistoUnitaBadge: {
+    marginLeft: '8px',
+    fontSize: '12px',
+    color: '#999',
+  },
+  acquistoFornitoreAltro: {
+    background: '#ffc107',
+    color: '#856404',
+    padding: '4px 12px',
+    borderRadius: '12px',
+    fontSize: '12px',
+    fontWeight: '700',
+  },
+  acquistoPrezzoTotale: {
+    fontSize: '16px',
+    color: '#28a745',
+  },
+  acquistoTotale: {
+    marginTop: '32px',
+    paddingTop: '24px',
+    borderTop: '3px solid #e9ecef',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  acquistoTotaleLabel: {
+    fontSize: '20px',
+    fontWeight: '600',
+    color: '#1a1a1a',
+  },
+  acquistoTotaleValue: {
+    fontSize: '32px',
+    fontWeight: '700',
+    color: '#667eea',
+  },
+  acquistoEmpty: {
+    textAlign: 'center',
+    padding: '80px 20px',
+    background: 'white',
+    borderRadius: '16px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+  },
+  acquistoEmptyIcon: {
+    fontSize: '64px',
+    marginBottom: '20px',
+  },
+  acquistoEmptyTitle: {
+    fontSize: '24px',
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: '12px',
+  },
+  acquistoEmptyText: {
+    fontSize: '16px',
+    color: '#999',
+  },
+  acquistoFormContainer: {
+    background: 'white',
+    borderRadius: '16px',
+    padding: '28px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+    marginBottom: '24px',
+  },
+  acquistoFormHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '24px',
+    paddingBottom: '20px',
+    borderBottom: '2px solid #f0f2f5',
+  },
+  acquistoFormTitle: {
+    fontSize: '20px',
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  acquistoForm: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px',
+  },
+  acquistoPreview: {
+    background: 'linear-gradient(135deg, #e3f2fd 0%, #e8eaf6 100%)',
+    border: '2px solid #667eea',
+    borderRadius: '12px',
+    padding: '16px 20px',
+  },
+  acquistoPreviewLabel: {
+    fontSize: '13px',
+    fontWeight: '600',
+    color: '#667eea',
+    marginBottom: '8px',
+  },
+  acquistoPreviewRow: {
+    display: 'flex',
+    gap: '12px',
+    alignItems: 'center',
+    fontSize: '16px',
+    color: '#1a1a1a',
+  },
+  acquistoPreviewTotal: {
+    fontSize: '20px',
+    color: '#28a745',
   },
 };
 
