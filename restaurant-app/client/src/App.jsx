@@ -155,7 +155,7 @@ function Sidebar({ user, currentPage, onNavigate, onLogout }) {
     { id: 'piatti', label: 'Gestione Piatti', icon: '🍝', allowed: ['Direttore'] },
     { id: 'dipendenti', label: 'Gestione Dipendenti', icon: '👥', allowed: ['Direttore'] },
     { id: 'listini-ranch', label: 'Listini Ranch', icon: '🏪', allowed: ['Direttore'] },
-    { id: 'acquisti', label: 'Acquisti', icon: '🛒', allowed: ['Direttore'] },
+    { id: 'acquisti', label: 'Acquisti', icon: '🛒', allowed: ['Direttore', 'Dipendente'] },
   ];
 
   return (
